@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { supabase, mapUser } from "./supabase";
 import PaystackPop from "@paystack/inline-js";
 import {
   Search, MapPin, CalendarDays, Shield, Scale, Receipt, Plus, X, Check,
@@ -757,52 +758,151 @@ function Conditions({ onClose }) {
 /* Sign up / log in                                                    */
 /* ------------------------------------------------------------------ */
 function AuthModal({ mode, intent, onClose, onAuth, onSwitch }) {
+  const [subStep, setSubStep] = useState("form"); // "form" | "otp"
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
+  const [otp, setOtp] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
   const isSignup = mode === "signup";
-  const ok = email.includes("@") && pw.length >= 4 && (!isSignup || name.trim());
+  const canSubmit = email.includes("@") && pw.length >= 6 && (!isSignup || name.trim());
   const intentLine =
     intent === "report"
       ? "You need an account to post a lost or found item."
       : intent === "claim"
       ? "Sign in to start a claim and reach the finder."
       : "Sign in to post items and make claims.";
+
+  const handleSubmitForm = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      if (isSignup) {
+        const { error: err } = await supabase.auth.signUp({
+          email,
+          password: pw,
+          options: { data: { full_name: name.trim() || email.split("@")[0] } },
+        });
+        if (err) {
+          const msg = err.message.toLowerCase();
+          if (msg.includes("already registered") || msg.includes("already been registered") || msg.includes("already exists")) {
+            setError("An account with this email already exists. Please sign in instead.");
+          } else {
+            setError(err.message);
+          }
+        } else {
+          setSubStep("otp");
+        }
+      } else {
+        const { data, error: err } = await supabase.auth.signInWithPassword({ email, password: pw });
+        if (err) {
+          setError("Incorrect email or password.");
+        } else {
+          onAuth(mapUser(data.user));
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const { data, error: err } = await supabase.auth.verifyOtp({
+        email,
+        token: otp.trim(),
+        type: "signup",
+      });
+      if (err) {
+        setError("Invalid or expired code. Check your email and try again.");
+      } else {
+        onAuth(mapUser(data.user));
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Modal onClose={onClose}>
       <div className="p-6 sm:p-8">
         <Eyebrow>{intent ? "One step first" : "Your account"}</Eyebrow>
-        <h2 className="mt-1 font-serif text-2xl font-semibold text-slate-800">
-          {isSignup ? "Create your account" : "Welcome back"}
-        </h2>
-        <p className="mt-1 text-sm text-slate-500">{intentLine}</p>
-        <div className="mt-5 grid gap-3">
-          {isSignup && (
-            <Field label="Full name">
-              <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" />
-            </Field>
-          )}
-          <Field label="Email">
-            <input className={inputCls} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
-          </Field>
-          <Field label="Password">
-            <input type="password" className={inputCls} value={pw} onChange={(e) => setPw(e.target.value)} placeholder="At least 4 characters" />
-          </Field>
-        </div>
-        <button
-          disabled={!ok}
-          onClick={() => onAuth({ name: name.trim() || email.split("@")[0], email })}
-          className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-teal-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-300 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {isSignup ? "Create account" : "Log in"} <ArrowRight className="h-4 w-4" />
-        </button>
-        <p className="mt-4 text-center text-sm text-slate-500">
-          {isSignup ? "Already have an account?" : "New here?"}{" "}
-          <button onClick={onSwitch} className="font-medium text-teal-700 hover:underline">
-            {isSignup ? "Log in" : "Create one"}
-          </button>
-        </p>
-        <p className="mt-3 text-center text-xs text-slate-400">Demo sign-in — no real account is created.</p>
+
+        {subStep === "form" ? (
+          <>
+            <h2 className="mt-1 font-serif text-2xl font-semibold text-slate-800">
+              {isSignup ? "Create your account" : "Welcome back"}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">{intentLine}</p>
+            <div className="mt-5 grid gap-3">
+              {isSignup && (
+                <Field label="Full name">
+                  <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" />
+                </Field>
+              )}
+              <Field label="Email">
+                <input type="email" className={inputCls} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+              </Field>
+              <Field label="Password">
+                <input type="password" className={inputCls} value={pw} onChange={(e) => setPw(e.target.value)} placeholder="At least 6 characters" />
+              </Field>
+            </div>
+            {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+            <button
+              disabled={!canSubmit || loading}
+              onClick={handleSubmitForm}
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-teal-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-300 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {loading ? "Please wait…" : isSignup ? "Create account" : "Log in"}
+              {!loading && <ArrowRight className="h-4 w-4" />}
+            </button>
+            <p className="mt-4 text-center text-sm text-slate-500">
+              {isSignup ? "Already have an account?" : "New here?"}{" "}
+              <button onClick={onSwitch} className="font-medium text-teal-700 hover:underline">
+                {isSignup ? "Log in" : "Create one"}
+              </button>
+            </p>
+          </>
+        ) : (
+          <>
+            <h2 className="mt-1 font-serif text-2xl font-semibold text-slate-800">Check your email</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              We sent a 6-digit code to <span className="font-medium text-slate-700">{email}</span>. Enter it below to verify your account.
+            </p>
+            <div className="mt-5">
+              <Field label="Verification code">
+                <input
+                  className={inputCls + " text-center font-mono text-lg tracking-widest"}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="000000"
+                  maxLength={6}
+                  inputMode="numeric"
+                  autoFocus
+                />
+              </Field>
+            </div>
+            {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+            <button
+              disabled={otp.length !== 6 || loading}
+              onClick={handleVerifyOtp}
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-teal-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-300 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {loading ? "Verifying…" : "Verify & continue"}
+              {!loading && <ArrowRight className="h-4 w-4" />}
+            </button>
+            <button
+              onClick={() => { setSubStep("form"); setOtp(""); setError(null); }}
+              className="mt-3 w-full text-center text-sm text-slate-400 hover:text-slate-600"
+            >
+              ← Back
+            </button>
+          </>
+        )}
       </div>
     </Modal>
   );
@@ -830,6 +930,34 @@ export default function App() {
   const [auth, setAuth] = useState(null); // null | 'signin' | 'signup'
   const [authIntent, setAuthIntent] = useState(null); // 'report' | 'claim'
   const [pendingReport, setPendingReport] = useState(null);
+
+  // Restore session on load and listen for auth state changes
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) setUser(mapUser(session.user));
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ? mapUser(session.user) : null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // 30-minute sliding inactivity session
+  useEffect(() => {
+    if (!user) return;
+    let timer;
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => supabase.auth.signOut(), 30 * 60 * 1000);
+    };
+    const events = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+    events.forEach((e) => window.addEventListener(e, reset, { passive: true }));
+    reset();
+    return () => {
+      clearTimeout(timer);
+      events.forEach((e) => window.removeEventListener(e, reset));
+    };
+  }, [user]);
 
   const openReport = (t) => {
     if (user) setReport(t);
@@ -977,7 +1105,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <span className="hidden text-sm text-teal-100 sm:inline">Hi, {user.name.split(" ")[0]}</span>
                 <button
-                  onClick={() => setUser(null)}
+                  onClick={() => supabase.auth.signOut()}
                   className="rounded-lg border border-white/20 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/10"
                 >
                   Log out
