@@ -1,0 +1,1273 @@
+import React, { useState, useMemo } from "react";
+import PaystackPop from "@paystack/inline-js";
+import {
+  Search, MapPin, CalendarDays, Shield, Scale, Receipt, Plus, X, Check,
+  ChevronDown, Package, Smartphone, CreditCard, KeyRound, Dog, Gem, Shirt,
+  Wallet, Banknote, FileText, ArrowRight, CheckCircle2, AlertTriangle,
+  Lock, SlidersHorizontal, Stamp, HandHeart, ImagePlus,
+} from "lucide-react";
+
+/* ------------------------------------------------------------------ */
+/* Reference data                                                      */
+/* ------------------------------------------------------------------ */
+const CATEGORIES = [
+  { id: "electronics", label: "Electronics", Icon: Smartphone },
+  { id: "documents", label: "Documents & ID", Icon: FileText },
+  { id: "wallets", label: "Wallets & Bags", Icon: Wallet },
+  { id: "cards", label: "Cards", Icon: CreditCard },
+  { id: "keys", label: "Keys", Icon: KeyRound },
+  { id: "jewelry", label: "Jewelry", Icon: Gem },
+  { id: "clothing", label: "Clothing", Icon: Shirt },
+  { id: "money", label: "Cash", Icon: Banknote },
+  { id: "pets", label: "Pets", Icon: Dog },
+  { id: "other", label: "Other", Icon: Package },
+];
+const catMap = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
+
+const SEED = [
+  { type: "found", title: "iPhone 13, teal case", category: "electronics", location: "Ikeja City Mall, Lagos", date: "2026-07-03", by: "Mall Security", note: "Handed in at the info desk. Locked; owner must confirm lock-screen photo.", value: 320000 },
+  { type: "lost", title: "Brown leather wallet", category: "wallets", location: "Yaba Bus Stop, Lagos", date: "2026-07-05", by: "Chidi A.", note: "Contains a national ID and two bank cards. Small ink stain inside.", reward: 15000, value: 20000 },
+  { type: "found", title: "Bunch of keys, blue tag", category: "keys", location: "Lekki Phase 1 Gym", date: "2026-07-04", by: "Front Desk", note: "Five keys on a ring with a small blue plastic tag.", value: 5000 },
+  { type: "lost", title: "National ID card", category: "documents", location: "Surulere, Lagos", date: "2026-07-02", by: "Amaka O.", note: "Dropped somewhere between the market and the bank.", value: 0 },
+  { type: "found", title: "Silver wristwatch", category: "jewelry", location: "Wuse Market, Abuja", date: "2026-07-01", by: "Trader stall 14", note: "Left on a counter. Engraving on the back for verification.", value: 45000 },
+  { type: "lost", title: "Black backpack, laptop inside", category: "wallets", location: "University of Lagos", date: "2026-06-30", by: "Tunde B.", note: "Contains a 14-inch laptop and lecture notes. Front zip is broken.", reward: 30000, value: 400000 },
+  { type: "found", title: "Set of car documents", category: "documents", location: "Ojota, Lagos", date: "2026-07-06", by: "Danladi M.", note: "Vehicle papers in a plastic folder. Name partly visible.", value: 0 },
+  { type: "returned", title: "Grey tabby cat", category: "pets", location: "Gwarinpa, Abuja", date: "2026-06-28", by: "Blessing E.", note: "Reunited with owner after collar tag was verified.", value: 0 },
+  { type: "found", title: "Prescription glasses", category: "other", location: "National Theatre, Lagos", date: "2026-07-05", by: "Usher team", note: "Thin gold frames in a hard black case.", value: 12000 },
+];
+
+const SEED_ITEMS = SEED.map((it, i) => ({
+  ...it,
+  id: `seed-${i}`,
+  ref: `LF-${2381 + i}`,
+  status: it.type === "returned" ? "returned" : "open",
+}));
+
+const NAIRA = (n) => "\u20A6" + (n || 0).toLocaleString("en-NG");
+
+/* Service charge: free to list; a verification & handling fee on successful return, tiered by declared value. */
+const feeFor = (value) => {
+  if (!value || value <= 0) return { fee: 1000, band: "No declared value" };
+  if (value <= 20000) return { fee: 1500, band: "Up to \u20A620,000" };
+  if (value <= 100000) return { fee: 3500, band: "\u20A620,001 – \u20A6100,000" };
+  if (value <= 500000) return { fee: 7500, band: "\u20A6100,001 – \u20A6500,000" };
+  return { fee: 15000, band: "Above \u20A6500,000" };
+};
+
+/* Flat, one-time fee a claimant pays to unlock the finder's contact. */
+const ACCESS_FEE = 1000;
+
+/* Deterministic demo contact number, revealed only after the access fee is paid. */
+const demoPhone = (seed) => {
+  let h = 0;
+  const s = String(seed);
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  const n = ((h % 9000000) + 1000000).toString();
+  return "0803 " + n.slice(0, 3) + " " + n.slice(3);
+};
+
+/* ------------------------------------------------------------------ */
+/* Small UI pieces                                                     */
+/* ------------------------------------------------------------------ */
+function StatusStamp({ type, status }) {
+  if (status === "returned")
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 font-mono text-xs uppercase tracking-widest text-slate-500">
+        <Stamp className="h-3 w-3" /> Returned
+      </span>
+    );
+  if (type === "lost")
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 font-mono text-xs uppercase tracking-widest text-amber-700">
+        Lost
+      </span>
+    );
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-50 px-2 py-0.5 font-mono text-xs uppercase tracking-widest text-emerald-700">
+      Found
+    </span>
+  );
+}
+
+function Eyebrow({ children }) {
+  return <p className="font-mono text-xs uppercase tracking-widest text-teal-600">{children}</p>;
+}
+
+function Field({ label, hint, children }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
+      {children}
+      {hint && <span className="mt-1 block text-xs text-slate-400">{hint}</span>}
+    </label>
+  );
+}
+
+const inputCls =
+  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200";
+
+function Check1({ checked, onChange, children }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className="flex w-full items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 text-left transition hover:border-teal-300 focus:outline-none focus:ring-2 focus:ring-teal-200"
+    >
+      <span
+        className={
+          "mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded border transition " +
+          (checked ? "border-teal-600 bg-teal-600 text-white" : "border-slate-300 bg-white text-transparent")
+        }
+      >
+        <Check className="h-3.5 w-3.5" />
+      </span>
+      <span className="text-sm text-slate-600">{children}</span>
+    </button>
+  );
+}
+
+function Modal({ children, onClose, wide }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 sm:p-8"
+      onClick={onClose}
+    >
+      <div
+        className={"relative w-full rounded-2xl bg-white shadow-xl " + (wide ? "max-w-3xl" : "max-w-lg")}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-3 top-3 rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-200"
+        >
+          <X className="h-5 w-5" />
+        </button>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Item photo (uploaded image, or a category placeholder tile)         */
+/* ------------------------------------------------------------------ */
+const CAT_EMOJI = {
+  electronics: "\uD83D\uDCF1", documents: "\uD83E\uDEAA", wallets: "\uD83D\uDC5C",
+  cards: "\uD83D\uDCB3", keys: "\uD83D\uDD11", jewelry: "\uD83D\uDC8D",
+  clothing: "\uD83D\uDC55", money: "\uD83D\uDCB5", pets: "\uD83D\uDC3E", other: "\uD83D\uDCE6",
+};
+const CAT_GRAD = {
+  electronics: "from-sky-100 to-teal-100", documents: "from-amber-100 to-orange-100",
+  wallets: "from-rose-100 to-amber-100", cards: "from-indigo-100 to-sky-100",
+  keys: "from-teal-100 to-emerald-100", jewelry: "from-fuchsia-100 to-rose-100",
+  clothing: "from-violet-100 to-indigo-100", money: "from-emerald-100 to-teal-100",
+  pets: "from-orange-100 to-amber-100", other: "from-slate-100 to-slate-200",
+};
+
+function ItemThumb({ item }) {
+  if (item.image) return <img src={item.image} alt={item.title} className="h-full w-full object-cover" />;
+  const grad = CAT_GRAD[item.category] || CAT_GRAD.other;
+  const emoji = CAT_EMOJI[item.category] || CAT_EMOJI.other;
+  return (
+    <div className={"flex h-full w-full items-center justify-center bg-gradient-to-br " + grad}>
+      <span className="text-5xl" role="img" aria-label={(catMap[item.category] || catMap.other).label}>{emoji}</span>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Ticket card                                                         */
+/* ------------------------------------------------------------------ */
+function TicketCard({ item, onOpen }) {
+  const cat = catMap[item.category] || catMap.other;
+  const { Icon } = cat;
+  const dim = item.status === "returned";
+  return (
+    <button
+      onClick={() => onOpen(item)}
+      className={
+        "group relative flex flex-col rounded-2xl border bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-300 " +
+        (dim ? "border-slate-200 opacity-80" : "border-slate-200")
+      }
+    >
+      {/* photo */}
+      <div className="relative h-36 w-full overflow-hidden rounded-t-2xl">
+        <ItemThumb item={item} />
+        <span className="absolute left-3 top-3 rounded-md bg-white/90 px-2 py-0.5 font-mono text-xs tracking-wider text-teal-700 shadow-sm">{item.ref}</span>
+        <span className="absolute right-3 top-3">
+          <StatusStamp type={item.type} status={item.status} />
+        </span>
+      </div>
+
+      {/* seam notches */}
+      <span className="absolute -left-2 top-36 h-4 w-4 -translate-y-1/2 rounded-full bg-stone-100" />
+      <span className="absolute -right-2 top-36 h-4 w-4 -translate-y-1/2 rounded-full bg-stone-100" />
+
+      <div className="flex flex-1 flex-col p-4">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-teal-50 text-teal-700">
+            <Icon className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="truncate font-serif text-base font-semibold leading-tight text-slate-800">{item.title}</h3>
+            <p className="text-xs text-slate-400">{cat.label}</p>
+          </div>
+        </div>
+
+        <p className="mt-3 line-clamp-2 text-sm text-slate-500">{item.note}</p>
+
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+          <span className="inline-flex items-center gap-1">
+            <MapPin className="h-3.5 w-3.5 text-slate-400" /> {item.location}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <CalendarDays className="h-3.5 w-3.5 text-slate-400" /> {item.date}
+          </span>
+        </div>
+
+        {item.reward ? (
+          <div className="mt-3 inline-flex w-fit items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">
+            <HandHeart className="h-3.5 w-3.5" /> Reward {NAIRA(item.reward)}
+          </div>
+        ) : null}
+
+        <div className="mt-4 flex items-center gap-1 text-sm font-medium text-teal-700 opacity-0 transition group-hover:opacity-100">
+          {item.type === "lost" ? "I found this" : "This is mine"} <ArrowRight className="h-4 w-4" />
+        </div>
+      </div>
+    </button>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Report form                                                         */
+/* ------------------------------------------------------------------ */
+const emptyForm = {
+  type: "lost",
+  title: "",
+  category: "electronics",
+  location: "",
+  date: "",
+  by: "",
+  contact: "",
+  note: "",
+  value: "",
+  reward: "",
+  securityQ: "",
+  image: "",
+};
+
+function ReportForm({ initialType, onCancel, onSubmit }) {
+  const [f, setF] = useState({ ...emptyForm, type: initialType });
+  const [checks, setChecks] = useState({ accurate: false, security: false, fee: false, terms: false });
+  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target ? e.target.value : e }));
+  const handleFile = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setF((s) => ({ ...s, image: reader.result }));
+    reader.readAsDataURL(file);
+  };
+  const allChecked = Object.values(checks).every(Boolean);
+  const required = f.title && f.category && f.location && f.date && f.securityQ;
+  const est = feeFor(Number(f.value));
+
+  return (
+    <div className="p-6 sm:p-8">
+      <Eyebrow>File a report</Eyebrow>
+      <h2 className="mt-1 font-serif text-2xl font-semibold text-slate-800">
+        {f.type === "lost" ? "Report a lost item" : "Report a found item"}
+      </h2>
+
+      <div className="mt-4 inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+        {["lost", "found"].map((t) => (
+          <button
+            key={t}
+            onClick={() => setF((s) => ({ ...s, type: t }))}
+            className={
+              "rounded-md px-4 py-1.5 text-sm font-medium capitalize transition " +
+              (f.type === t ? "bg-white text-teal-800 shadow-sm" : "text-slate-500 hover:text-slate-700")
+            }
+          >
+            {t === "lost" ? "I lost something" : "I found something"}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <Field label="What is it?">
+            <input className={inputCls} value={f.title} onChange={set("title")} placeholder="e.g. Black backpack with laptop" />
+          </Field>
+        </div>
+        <div className="sm:col-span-2">
+          <Field label="Photo (optional)" hint="A clear photo helps the owner recognise the item.">
+            {f.image ? (
+              <div className="relative inline-block">
+                <img src={f.image} alt="Item preview" className="h-28 w-28 rounded-lg border border-slate-200 object-cover" />
+                <button
+                  type="button"
+                  onClick={() => setF((s) => ({ ...s, image: "" }))}
+                  aria-label="Remove photo"
+                  className="absolute -right-2 -top-2 rounded-full bg-slate-800 p-1 text-white transition hover:bg-slate-700"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ) : (
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500 transition hover:border-teal-400 hover:text-teal-700">
+                <ImagePlus className="h-5 w-5" /> Add a photo
+                <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
+              </label>
+            )}
+          </Field>
+        </div>
+        <Field label="Category">
+          <div className="relative">
+            <select className={inputCls + " appearance-none pr-9"} value={f.category} onChange={set("category")}>
+              {CATEGORIES.map((c) => (
+                <option key={c.id} value={c.id}>{c.label}</option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-2.5 h-4 w-4 text-slate-400" />
+          </div>
+        </Field>
+        <Field label={f.type === "lost" ? "Where did you lose it?" : "Where did you find it?"}>
+          <input className={inputCls} value={f.location} onChange={set("location")} placeholder="Area, landmark, city" />
+        </Field>
+        <Field label="Date">
+          <input type="date" className={inputCls} value={f.date} onChange={set("date")} />
+        </Field>
+        <Field label="Declared value (optional)" hint="Used only to estimate the return handling fee.">
+          <input type="number" min="0" className={inputCls} value={f.value} onChange={set("value")} placeholder="\u20A6" />
+        </Field>
+        {f.type === "lost" && (
+          <Field label="Reward (optional)">
+            <input type="number" min="0" className={inputCls} value={f.reward} onChange={set("reward")} placeholder="\u20A6" />
+          </Field>
+        )}
+        <div className="sm:col-span-2">
+          <Field label="Description" hint="Add helpful detail, but keep unique identifiers for the verification question below.">
+            <textarea rows={3} className={inputCls} value={f.note} onChange={set("note")} placeholder="Colour, brand, contents, distinguishing marks…" />
+          </Field>
+        </div>
+        <div className="sm:col-span-2">
+          <Field
+            label="Verification question"
+            hint="Only the true owner should know this answer. It is never shown publicly."
+          >
+            <input className={inputCls} value={f.securityQ} onChange={set("securityQ")} placeholder="e.g. What is engraved on the back? What is the lock-screen photo?" />
+          </Field>
+        </div>
+        <Field label="Your name">
+          <input className={inputCls} value={f.by} onChange={set("by")} placeholder="Shown on the listing" />
+        </Field>
+        <Field label="Contact" hint="Hidden until a claim passes verification.">
+          <div className="relative">
+            <Lock className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <input className={inputCls + " pl-9"} value={f.contact} onChange={set("contact")} placeholder="Phone or email" />
+          </div>
+        </Field>
+      </div>
+
+      {/* Conditions */}
+      <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <Shield className="h-4 w-4 text-teal-700" /> Conditions you agree to
+        </p>
+        <div className="grid gap-2">
+          <Check1 checked={checks.accurate} onChange={(v) => setChecks((s) => ({ ...s, accurate: v }))}>
+            The details are accurate and this item is lawful to report. I understand false reports may be treated as fraud.
+          </Check1>
+          <Check1 checked={checks.security} onChange={(v) => setChecks((s) => ({ ...s, security: v }))}>
+            I agree to the security protocol — claims are released only after identity and ownership verification, at a safe handover.
+          </Check1>
+          <Check1 checked={checks.fee} onChange={(v) => setChecks((s) => ({ ...s, fee: v }))}>
+            I acknowledge the service charge — listing is free; a verification &amp; handling fee (est. <strong>{NAIRA(est.fee)}</strong> for {est.band.toLowerCase()}) applies on a successful return.
+          </Check1>
+          <Check1 checked={checks.terms} onChange={(v) => setChecks((s) => ({ ...s, terms: v }))}>
+            I consent to the terms and privacy policy, including that my contact stays hidden until a claim is verified.
+          </Check1>
+        </div>
+      </div>
+
+      <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        <button
+          onClick={onCancel}
+          className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-200"
+        >
+          Cancel
+        </button>
+        <button
+          disabled={!required || !allChecked}
+          onClick={() =>
+            onSubmit({
+              ...f,
+              value: Number(f.value) || 0,
+              reward: Number(f.reward) || 0,
+            })
+          }
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-800 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-300 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Post to the board <ArrowRight className="h-4 w-4" />
+        </button>
+      </div>
+      {!required && (
+        <p className="mt-2 text-right text-xs text-slate-400">Fill the item, category, location, date and verification question to continue.</p>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Item detail + claim                                                 */
+/* ------------------------------------------------------------------ */
+function ItemDetail({ item, onClose, user, onRequireAuth, onHandover }) {
+  const cat = catMap[item.category] || catMap.other;
+  const { Icon } = cat;
+  const [step, setStep] = useState("view"); // view | claim | pay | unlocked | handover
+  const [answer, setAnswer] = useState("");
+  const [ack, setAck] = useState({ id: false, fee: false });
+  const [payRef, setPayRef] = useState(null);
+  const [pickupType, setPickupType] = useState("person"); // person | proxy
+  const [ownerIdFile, setOwnerIdFile] = useState("");
+  const [proxyIdFile, setProxyIdFile] = useState("");
+
+  const handleIdFile = (e, setter) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setter(reader.result);
+    reader.readAsDataURL(file);
+  };
+
+  const handlePay = () => {
+    const popup = new PaystackPop();
+    popup.newTransaction({
+      key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
+      email: user?.email || "guest@reclaimdesk.ng",
+      amount: ACCESS_FEE * 100, // kobo
+      onSuccess: (transaction) => {
+        setPayRef(transaction.reference);
+        setStep("unlocked");
+      },
+      onCancel: () => {},
+    });
+  };
+  const est = feeFor(item.value);
+  const canSubmit = answer.trim().length > 3 && ack.id && ack.fee;
+
+  return (
+    <Modal onClose={onClose} wide>
+      <div className="p-6 sm:p-8">
+        <div className="mb-5 h-52 w-full overflow-hidden rounded-xl bg-teal-50">
+          <ItemThumb item={item} />
+        </div>
+        <div className="flex items-center justify-between pr-8">
+          <span className="font-mono text-xs tracking-wider text-teal-600">{item.ref}</span>
+          <StatusStamp type={item.type} status={item.status} />
+        </div>
+        <div className="mt-4 flex items-start gap-4">
+          <span className="flex h-12 w-12 flex-none items-center justify-center rounded-xl bg-teal-50 text-teal-700">
+            <Icon className="h-6 w-6" />
+          </span>
+          <div>
+            <h2 className="font-serif text-2xl font-semibold leading-tight text-slate-800">{item.title}</h2>
+            <p className="text-sm text-slate-400">{cat.label}</p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-lg bg-slate-50 p-3 text-sm">
+            <p className="text-xs uppercase tracking-wide text-slate-400">{item.type === "lost" ? "Last seen" : "Found at"}</p>
+            <p className="mt-1 flex items-center gap-1 text-slate-700"><MapPin className="h-4 w-4 text-slate-400" /> {item.location}</p>
+          </div>
+          <div className="rounded-lg bg-slate-50 p-3 text-sm">
+            <p className="text-xs uppercase tracking-wide text-slate-400">Date</p>
+            <p className="mt-1 flex items-center gap-1 text-slate-700"><CalendarDays className="h-4 w-4 text-slate-400" /> {item.date}</p>
+          </div>
+        </div>
+
+        <p className="mt-4 text-sm leading-relaxed text-slate-600">{item.note}</p>
+        <p className="mt-3 text-sm text-slate-500">Reported by <span className="font-medium text-slate-700">{item.by || "Anonymous"}</span>. Contact is protected until a claim is verified.</p>
+        {item.reward ? (
+          <div className="mt-3 inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-sm font-medium text-amber-700">
+            <HandHeart className="h-4 w-4" /> Reward offered: {NAIRA(item.reward)}
+          </div>
+        ) : null}
+
+        {item.status === "returned" ? (
+          <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+            <p className="flex items-center gap-2 font-medium text-slate-700"><CheckCircle2 className="h-4 w-4 text-emerald-600" /> This case is closed — the item has been returned to its owner.</p>
+          </div>
+        ) : step === "view" ? (
+          <>
+            <div className="mt-6 rounded-xl border border-teal-100 bg-teal-50 p-4">
+              <p className="flex items-center gap-2 text-sm font-semibold text-teal-900"><Receipt className="h-4 w-4" /> Finder access fee</p>
+              <p className="mt-1 text-sm text-teal-800">A one-time <strong>{NAIRA(ACCESS_FEE)}</strong> fee unlocks the finder's contact after you verify ownership. A tiered return handling fee may also apply on a successful return.</p>
+            </div>
+            {user ? (
+              <button
+                onClick={() => setStep("claim")}
+                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-teal-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-300"
+              >
+                {item.type === "lost" ? "I found this item" : "This is mine — start a claim"} <ArrowRight className="h-4 w-4" />
+              </button>
+            ) : (
+              <button
+                onClick={onRequireAuth}
+                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-teal-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-300"
+              >
+                <Lock className="h-4 w-4" /> Sign in to claim
+              </button>
+            )}
+          </>
+        ) : step === "claim" ? (
+          <div className="mt-6">
+            <p className="flex items-center gap-2 font-serif text-lg font-semibold text-slate-800"><Shield className="h-5 w-5 text-teal-700" /> Verification</p>
+            <p className="mt-1 text-sm text-slate-500">Answer the reporter's verification question. Your answer goes only to the reporter for matching — never posted publicly.</p>
+            <div className="mt-4">
+              <Field label="Prove ownership" hint="Describe a unique identifier only the owner would know.">
+                <textarea rows={3} className={inputCls} value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="e.g. The lock-screen is a photo of a red car; there's an ink stain inside the flap." />
+              </Field>
+            </div>
+            <div className="mt-4 grid gap-2">
+              <Check1 checked={ack.id} onChange={(v) => setAck((s) => ({ ...s, id: v }))}>
+                I will present a valid ID at a safe, verified handover point before the item is released.
+              </Check1>
+              <Check1 checked={ack.fee} onChange={(v) => setAck((s) => ({ ...s, fee: v }))}>
+                I understand a <strong>{NAIRA(ACCESS_FEE)}</strong> access fee unlocks the finder's contact, and a return handling fee (about {NAIRA(est.fee)}) may apply on a successful return.
+              </Check1>
+            </div>
+            <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+              <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
+              High-value items and official documents may require reporting to the police before release, in line with local law.
+            </div>
+            <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button onClick={() => setStep("view")} className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50">Back</button>
+              <button
+                disabled={!canSubmit}
+                onClick={() => setStep("pay")}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-800 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Continue to payment <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        ) : step === "pay" ? (
+          <div className="mt-6">
+            <p className="flex items-center gap-2 font-serif text-lg font-semibold text-slate-800"><Lock className="h-5 w-5 text-teal-700" /> Unlock the finder</p>
+            <p className="mt-1 text-sm text-slate-500">Pay a one-time access fee to reveal the finder's contact and arrange a safe handover.</p>
+            <div className="mt-4 flex items-center justify-between rounded-xl border border-teal-100 bg-teal-50 p-4">
+              <span className="text-sm text-teal-900">Finder access fee</span>
+              <span className="font-serif text-2xl font-semibold text-teal-900">{NAIRA(ACCESS_FEE)}</span>
+            </div>
+            <div className="mt-3 flex items-start gap-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">
+              <Shield className="mt-0.5 h-4 w-4 flex-none text-teal-700" /> Secured by Paystack — pay with card, bank transfer, or USSD.
+            </div>
+            <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button onClick={() => setStep("claim")} className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50">Back</button>
+              <button
+                onClick={handlePay}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-800 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700"
+              >
+                Pay {NAIRA(ACCESS_FEE)} &amp; unlock <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        ) : step === "handover" ? (
+          <div className="mt-6">
+            <p className="flex items-center gap-2 font-serif text-lg font-semibold text-slate-800">
+              <CheckCircle2 className="h-5 w-5 text-teal-700" /> Confirm handover
+            </p>
+            <p className="mt-1 text-sm text-slate-500">Upload the ID(s) presented at pickup. This completes the return and closes the ticket.</p>
+
+            <div className="mt-4">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">Pickup type</p>
+              <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1">
+                {[["person", "In person"], ["proxy", "By proxy"]].map(([id, label]) => (
+                  <button
+                    key={id}
+                    onClick={() => { setPickupType(id); setProxyIdFile(""); }}
+                    className={
+                      "rounded-md px-4 py-1.5 text-sm font-medium transition " +
+                      (pickupType === id ? "bg-white text-teal-800 shadow-sm" : "text-slate-500 hover:text-slate-700")
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              {pickupType === "person"
+                ? "Upload the owner's NIN slip or passport photo page as presented at collection."
+                : "Upload both the original owner's NIN/passport AND the proxy's NIN/passport."}
+            </div>
+
+            <div className="mt-4 grid gap-4">
+              <div>
+                <p className="mb-1.5 text-sm font-medium text-slate-700">
+                  {pickupType === "person" ? "Owner's NIN / Passport" : "Original owner's NIN / Passport"}
+                </p>
+                {ownerIdFile ? (
+                  <div className="relative inline-block">
+                    <img src={ownerIdFile} alt="Owner ID" className="h-28 w-48 rounded-lg border border-slate-200 object-cover" />
+                    <button type="button" onClick={() => setOwnerIdFile("")} aria-label="Remove" className="absolute -right-2 -top-2 rounded-full bg-slate-800 p-1 text-white hover:bg-slate-700">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500 transition hover:border-teal-400 hover:text-teal-700">
+                    <ImagePlus className="h-5 w-5" /> Upload ID photo
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleIdFile(e, setOwnerIdFile)} />
+                  </label>
+                )}
+              </div>
+
+              {pickupType === "proxy" && (
+                <div>
+                  <p className="mb-1.5 text-sm font-medium text-slate-700">Proxy's NIN / Passport</p>
+                  {proxyIdFile ? (
+                    <div className="relative inline-block">
+                      <img src={proxyIdFile} alt="Proxy ID" className="h-28 w-48 rounded-lg border border-slate-200 object-cover" />
+                      <button type="button" onClick={() => setProxyIdFile("")} aria-label="Remove" className="absolute -right-2 -top-2 rounded-full bg-slate-800 p-1 text-white hover:bg-slate-700">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500 transition hover:border-teal-400 hover:text-teal-700">
+                      <ImagePlus className="h-5 w-5" /> Upload ID photo
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleIdFile(e, setProxyIdFile)} />
+                    </label>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button onClick={() => setStep("unlocked")} className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50">Back</button>
+              <button
+                disabled={false}
+                onClick={() => onHandover(item.id)}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <CheckCircle2 className="h-4 w-4" /> Confirm handover &amp; close ticket
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+            <div className="text-center">
+              <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
+              <p className="mt-2 font-serif text-lg font-semibold text-slate-800">Finder unlocked</p>
+              <p className="mt-1 text-sm text-slate-600">Access fee of {NAIRA(ACCESS_FEE)} paid. Contact the finder below and arrange a safe handover.</p>
+            </div>
+            <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4 text-sm">
+              <p className="text-xs uppercase tracking-wide text-slate-400">Finder</p>
+              <p className="mt-0.5 font-medium text-slate-800">{item.by || "Reclaim Desk member"}</p>
+              <p className="mt-2 text-xs uppercase tracking-wide text-slate-400">Contact</p>
+              <p className="mt-0.5 font-mono text-slate-800">{item.contact || demoPhone(item.id)}</p>
+            </div>
+            <p className="mt-2 text-center font-mono text-xs text-slate-400">Receipt {payRef}</p>
+
+            {/* Handover protocol notice */}
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
+              <p className="flex items-center gap-2 font-semibold text-amber-900">
+                <Shield className="h-4 w-4 flex-none" /> Handover protocol
+              </p>
+              <div className="mt-2 space-y-1 text-amber-800">
+                <p className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 flex-none text-amber-600" /> <span><strong>In person:</strong> the owner presents a valid NIN or passport to the finder at pickup.</span></p>
+                <p className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 flex-none text-amber-600" /> <span><strong>By proxy:</strong> the proxy presents their own NIN/passport <em>and</em> the original owner's NIN/passport.</span></p>
+                <p className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 flex-none text-amber-600" /> The finder uploads the ID(s) on the platform to confirm the handover.</p>
+              </div>
+              <button
+                onClick={() => setStep("handover")}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-300"
+              >
+                Proceed to handover confirmation <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Conditions reference                                                */
+/* ------------------------------------------------------------------ */
+function Conditions({ onClose }) {
+  const Section = ({ Icon, title, children }) => (
+    <div className="rounded-xl border border-slate-200 p-5">
+      <p className="flex items-center gap-2 font-serif text-lg font-semibold text-slate-800"><Icon className="h-5 w-5 text-teal-700" /> {title}</p>
+      <div className="mt-2 space-y-1.5 text-sm text-slate-600">{children}</div>
+    </div>
+  );
+  const Li = ({ children }) => (
+    <p className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 flex-none text-teal-600" /> {children}</p>
+  );
+  return (
+    <Modal onClose={onClose} wide>
+      <div className="p-6 sm:p-8">
+        <Eyebrow>The house rules</Eyebrow>
+        <h2 className="mt-1 font-serif text-2xl font-semibold text-slate-800">How reclaiming works</h2>
+        <p className="mt-1 text-sm text-slate-500">Three things keep the board safe, lawful, and fair. Every report and claim agrees to them.</p>
+        <div className="mt-5 grid gap-4">
+          <Section Icon={Shield} title="Security protocol">
+            <Li>Every reporter sets a private verification question; only the true owner should know the answer.</Li>
+            <Li>Contact details stay hidden until a claim passes verification.</Li>
+            <Li>Items are released only at a safe, verified handover with valid ID.</Li>
+            <Li>Nothing is released on the strength of a description alone.</Li>
+          </Section>
+          <Section Icon={Scale} title="Legal compliance">
+            <Li>Reports must be truthful; misrepresentation may be treated as fraud.</Li>
+            <Li>Prohibited items — weapons, controlled substances, hazardous or illegal goods — may not be listed.</Li>
+            <Li>High-value items and official documents may require a police report before release, per local law.</Li>
+            <Li>Personal data is collected and shared only as needed to reunite an item with its owner.</Li>
+          </Section>
+          <Section Icon={Receipt} title="Service charge">
+            <Li>Listing an item and browsing the board are always free.</Li>
+            <Li>A one-time finder access fee of <strong>{NAIRA(ACCESS_FEE)}</strong> is charged to a claimant to unlock the finder's contact, after ownership is verified.</Li>
+            <Li>A verification &amp; handling fee applies only on a successful, verified return:</Li>
+            <div className="mt-2 overflow-hidden rounded-lg border border-slate-200">
+              {[0, 20000, 100000, 500000, 500001].map((v, i) => {
+                const info = feeFor(v);
+                return (
+                  <div key={i} className={"flex items-center justify-between px-3 py-2 text-sm " + (i % 2 ? "bg-slate-50" : "bg-white")}>
+                    <span className="text-slate-600">{info.band}</span>
+                    <span className="font-mono text-teal-700">{NAIRA(info.fee)}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <Li>Any reward offered by an owner is separate and voluntary.</Li>
+          </Section>
+        </div>
+        <button onClick={onClose} className="mt-6 w-full rounded-lg bg-teal-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-700">Got it</button>
+      </div>
+    </Modal>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Sign up / log in                                                    */
+/* ------------------------------------------------------------------ */
+function AuthModal({ mode, intent, onClose, onAuth, onSwitch }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [pw, setPw] = useState("");
+  const isSignup = mode === "signup";
+  const ok = email.includes("@") && pw.length >= 4 && (!isSignup || name.trim());
+  const intentLine =
+    intent === "report"
+      ? "You need an account to post a lost or found item."
+      : intent === "claim"
+      ? "Sign in to start a claim and reach the finder."
+      : "Sign in to post items and make claims.";
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-6 sm:p-8">
+        <Eyebrow>{intent ? "One step first" : "Your account"}</Eyebrow>
+        <h2 className="mt-1 font-serif text-2xl font-semibold text-slate-800">
+          {isSignup ? "Create your account" : "Welcome back"}
+        </h2>
+        <p className="mt-1 text-sm text-slate-500">{intentLine}</p>
+        <div className="mt-5 grid gap-3">
+          {isSignup && (
+            <Field label="Full name">
+              <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" />
+            </Field>
+          )}
+          <Field label="Email">
+            <input className={inputCls} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+          </Field>
+          <Field label="Password">
+            <input type="password" className={inputCls} value={pw} onChange={(e) => setPw(e.target.value)} placeholder="At least 4 characters" />
+          </Field>
+        </div>
+        <button
+          disabled={!ok}
+          onClick={() => onAuth({ name: name.trim() || email.split("@")[0], email })}
+          className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-teal-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-300 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {isSignup ? "Create account" : "Log in"} <ArrowRight className="h-4 w-4" />
+        </button>
+        <p className="mt-4 text-center text-sm text-slate-500">
+          {isSignup ? "Already have an account?" : "New here?"}{" "}
+          <button onClick={onSwitch} className="font-medium text-teal-700 hover:underline">
+            {isSignup ? "Log in" : "Create one"}
+          </button>
+        </p>
+        <p className="mt-3 text-center text-xs text-slate-400">Demo sign-in — no real account is created.</p>
+      </div>
+    </Modal>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Main app                                                            */
+/* ------------------------------------------------------------------ */
+export default function App() {
+  const [items, setItems] = useState(SEED_ITEMS);
+  const [query, setQuery] = useState("");
+  const [type, setType] = useState("all"); // all | lost | found
+  const [cat, setCat] = useState("all");
+  const [sort, setSort] = useState("newest");
+  const [location, setLocation] = useState("");
+  const [when, setWhen] = useState("any");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const [report, setReport] = useState(null); // null | 'lost' | 'found'
+  const [showConditions, setShowConditions] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [user, setUser] = useState(null);
+  const [auth, setAuth] = useState(null); // null | 'signin' | 'signup'
+  const [authIntent, setAuthIntent] = useState(null); // 'report' | 'claim'
+  const [pendingReport, setPendingReport] = useState(null);
+
+  const openReport = (t) => {
+    if (user) setReport(t);
+    else {
+      setPendingReport(t);
+      setAuthIntent("report");
+      setAuth("signup");
+    }
+  };
+  const handleAuth = (u) => {
+    setUser(u);
+    setAuth(null);
+    setAuthIntent(null);
+    if (pendingReport) {
+      setReport(pendingReport);
+      setPendingReport(null);
+    }
+  };
+
+  const counts = useMemo(() => {
+    const open = items.filter((i) => i.status !== "returned");
+    return {
+      all: open.length,
+      lost: open.filter((i) => i.type === "lost").length,
+      found: open.filter((i) => i.type === "found").length,
+      returned: items.filter((i) => i.status === "returned").length,
+    };
+  }, [items]);
+
+  const locations = useMemo(
+    () => Array.from(new Set(items.map((i) => i.location))).sort(),
+    [items]
+  );
+
+  // Relative time presets are anchored to the most recent ticket so the board
+  // always surfaces its data regardless of the real calendar date.
+  const refDate = useMemo(() => {
+    const max = items.reduce((m, i) => (i.date > m ? i.date : m), "0000-00-00");
+    const today = new Date().toISOString().slice(0, 10);
+    return max > today ? max : today;
+  }, [items]);
+
+  const shiftDays = (iso, n) => {
+    const d = new Date(iso + "T00:00:00");
+    d.setDate(d.getDate() - n);
+    return d.toISOString().slice(0, 10);
+  };
+
+  const activeFilters = [cat !== "all", !!location, when !== "any", !!query].filter(Boolean).length;
+
+  const clearFilters = () => {
+    setCat("all");
+    setLocation("");
+    setWhen("any");
+    setDateFrom("");
+    setDateTo("");
+    setQuery("");
+  };
+
+  const visible = useMemo(() => {
+    let from = "", to = "";
+    if (when === "today") { from = refDate; to = refDate; }
+    else if (when === "7") { from = shiftDays(refDate, 6); to = refDate; }
+    else if (when === "30") { from = shiftDays(refDate, 29); to = refDate; }
+    else if (when === "custom") { from = dateFrom; to = dateTo; }
+
+    let list = items.filter((i) => {
+      if (type === "returned") {
+        if (i.status !== "returned") return false;
+      } else {
+        if (i.status === "returned") return false;
+        if (type !== "all" && i.type !== type) return false;
+      }
+      if (cat !== "all" && i.category !== cat) return false;
+      if (location && !i.location.toLowerCase().includes(location.toLowerCase())) return false;
+      if (from && i.date < from) return false;
+      if (to && i.date > to) return false;
+      if (query) {
+        const q = query.toLowerCase();
+        if (!(i.title + i.note + i.location + i.ref).toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+    list = [...list].sort((a, b) => {
+      if (sort === "az") return a.title.localeCompare(b.title);
+      const cmp = a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
+      return sort === "newest" ? -cmp : cmp;
+    });
+    return list;
+  }, [items, type, cat, query, sort, location, when, dateFrom, dateTo, refDate]);
+
+  const handleHandover = (id) => {
+    const ref = items.find((i) => i.id === id)?.ref;
+    setItems((s) => s.map((it) => it.id === id ? { ...it, status: "returned" } : it));
+    setSelected(null);
+    setToast({ ref, type: "returned" });
+    setTimeout(() => setToast(null), 5000);
+  };
+
+  const addItem = (f) => {
+    const ref = `LF-${2381 + items.length + Math.floor(Math.random() * 40)}`;
+    const item = {
+      ...f,
+      id: "u-" + Date.now(),
+      ref,
+      status: "open",
+      by: f.by || (user ? user.name : "Anonymous"),
+      contact: f.contact || (user ? user.email : ""),
+    };
+    setItems((s) => [item, ...s]);
+    setReport(null);
+    setType(f.type);
+    setCat("all");
+    setLocation("");
+    setWhen("any");
+    setDateFrom("");
+    setDateTo("");
+    setQuery("");
+    setToast({ ref, type: f.type });
+    setTimeout(() => setToast(null), 5000);
+  };
+
+  return (
+    <div className="min-h-screen bg-stone-100 font-sans text-slate-800">
+      {/* Desk header */}
+      <header className="bg-teal-900 text-white">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10">
+              <HandHeart className="h-5 w-5" />
+            </span>
+            <div className="leading-tight">
+              <p className="font-serif text-lg font-semibold tracking-tight">Reclaim Desk</p>
+              <p className="font-mono text-xs uppercase tracking-widest text-teal-300">Community lost &amp; found</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowConditions(true)}
+              className="hidden rounded-lg px-3 py-2 text-sm font-medium text-teal-100 transition hover:bg-white/10 sm:block"
+            >
+              How it works
+            </button>
+            {user ? (
+              <div className="flex items-center gap-2">
+                <span className="hidden text-sm text-teal-100 sm:inline">Hi, {user.name.split(" ")[0]}</span>
+                <button
+                  onClick={() => setUser(null)}
+                  className="rounded-lg border border-white/20 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+                >
+                  Log out
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setAuthIntent(null); setAuth("signin"); }}
+                className="rounded-lg border border-white/20 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/10"
+              >
+                Sign in
+              </button>
+            )}
+            <button
+              onClick={() => openReport("lost")}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-teal-950 transition hover:bg-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-200"
+            >
+              <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Report an item</span><span className="sm:hidden">Report</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Hero */}
+        <div className="mx-auto max-w-7xl px-4 pb-10 pt-4 sm:px-6">
+          <h1 className="max-w-2xl font-serif text-3xl font-semibold leading-tight sm:text-4xl md:text-5xl">
+            Lost something? Found something? <span className="text-amber-300">Let's reunite them.</span>
+          </h1>
+          <p className="mt-2 max-w-xl text-sm text-teal-100">
+            Post a claim ticket, search the board, and reclaim items through a verified, safe handover.
+          </p>
+
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+            <div className="relative flex-1">
+              <Search className="absolute left-3.5 top-3.5 h-5 w-5 text-slate-400" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by item, place, or ticket code (e.g. LF-2381)"
+                className="w-full rounded-xl border border-transparent bg-white py-3 pl-11 pr-4 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-amber-300"
+              />
+            </div>
+            <button
+              onClick={() => openReport("found")}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+            >
+              I found something
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Toolbar */}
+      <div className="sticky top-0 z-30 border-b border-slate-200 bg-stone-100/90 backdrop-blur">
+        <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
+            {[
+              { id: "all", label: "All open", n: counts.all },
+              { id: "lost", label: "Lost", n: counts.lost },
+              { id: "found", label: "Found", n: counts.found },
+              { id: "returned", label: "Returned", n: counts.returned },
+            ].map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setType(t.id)}
+                className={
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition " +
+                  (type === t.id
+                    ? "border-teal-700 bg-teal-800 text-white"
+                    : "border-slate-300 bg-white text-slate-600 hover:border-teal-300")
+                }
+              >
+                {t.label}
+                <span className={"font-mono text-xs " + (type === t.id ? "text-teal-200" : "text-slate-400")}>{t.n}</span>
+              </button>
+            ))}
+
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={() => setShowFilters((v) => !v)}
+                className={
+                  "inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-teal-200 " +
+                  (showFilters || activeFilters
+                    ? "border-teal-700 bg-teal-50 text-teal-800"
+                    : "border-slate-300 bg-white text-slate-600 hover:border-teal-300")
+                }
+              >
+                <SlidersHorizontal className="h-4 w-4" /> Filters
+                {activeFilters > 0 && (
+                  <span className="ml-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-teal-700 px-1 font-mono text-xs text-white">
+                    {activeFilters}
+                  </span>
+                )}
+              </button>
+              <div className="relative">
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                  className="appearance-none rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-8 text-sm text-slate-600 outline-none focus:ring-2 focus:ring-teal-200"
+                >
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                  <option value="az">A–Z</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-slate-400" />
+              </div>
+            </div>
+          </div>
+
+          {showFilters && (
+            <div className="mt-3 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Category</span>
+                <div className="relative">
+                  <select
+                    value={cat}
+                    onChange={(e) => setCat(e.target.value)}
+                    className="w-full appearance-none rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-8 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-teal-200"
+                  >
+                    <option value="all">All categories</option>
+                    {CATEGORIES.map((c) => (
+                      <option key={c.id} value={c.id}>{c.label}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                </div>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Location</span>
+                <div className="relative">
+                  <MapPin className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                  <input
+                    list="loc-list"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    placeholder="Area or landmark"
+                    className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-8 pr-3 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-teal-200"
+                  />
+                  <datalist id="loc-list">
+                    {locations.map((l) => (
+                      <option key={l} value={l} />
+                    ))}
+                  </datalist>
+                </div>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                  When {type === "found" ? "found" : "lost"}
+                </span>
+                <div className="relative">
+                  <select
+                    value={when}
+                    onChange={(e) => setWhen(e.target.value)}
+                    className="w-full appearance-none rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-8 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-teal-200"
+                  >
+                    <option value="any">Any time</option>
+                    <option value="today">Latest day</option>
+                    <option value="7">Last 7 days</option>
+                    <option value="30">Last 30 days</option>
+                    <option value="custom">Custom range…</option>
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                </div>
+              </label>
+
+              {when === "custom" ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">From</span>
+                    <input
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-teal-200"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">To</span>
+                    <input
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-teal-200"
+                    />
+                  </label>
+                </div>
+              ) : (
+                <div className="flex items-end">
+                  <button
+                    onClick={clearFilters}
+                    disabled={!activeFilters}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-200 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <X className="h-4 w-4" /> Clear filters
+                  </button>
+                </div>
+              )}
+
+              {when === "custom" && (
+                <div className="flex justify-end sm:col-span-2 lg:col-span-4">
+                  <button
+                    onClick={clearFilters}
+                    disabled={!activeFilters}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-200 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <X className="h-4 w-4" /> Clear filters
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Board */}
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        <div className="mb-4 flex items-baseline justify-between">
+          <p className="text-sm text-slate-500">
+            <span className="font-semibold text-slate-700">{visible.length}</span> {visible.length === 1 ? "ticket" : "tickets"} on the board
+          </p>
+        </div>
+
+        {visible.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
+            <Package className="mx-auto h-10 w-10 text-slate-300" />
+            <p className="mt-3 font-serif text-lg font-semibold text-slate-700">Nothing matches yet</p>
+            <p className="mt-1 text-sm text-slate-500">Try clearing the filters, or file a report to start a new ticket.</p>
+            <button
+              onClick={() => openReport("lost")}
+              className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700"
+            >
+              <Plus className="h-4 w-4" /> Report an item
+            </button>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {visible.map((it) => (
+              <TicketCard key={it.id} item={it} onOpen={setSelected} />
+            ))}
+          </div>
+        )}
+      </main>
+
+      <footer className="border-t border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-2 px-4 py-6 text-sm text-slate-500 sm:flex-row sm:items-center sm:px-6">
+          <p>Reclaim Desk — a verified community lost &amp; found board.</p>
+          <button onClick={() => setShowConditions(true)} className="font-medium text-teal-700 hover:underline">
+            Security, legal &amp; service-charge conditions
+          </button>
+        </div>
+      </footer>
+
+      {/* Overlays */}
+      {selected && (
+        <ItemDetail
+          item={selected}
+          onClose={() => setSelected(null)}
+          user={user}
+          onRequireAuth={() => { setAuthIntent("claim"); setAuth("signin"); }}
+          onHandover={handleHandover}
+        />
+      )}
+      {showConditions && <Conditions onClose={() => setShowConditions(false)} />}
+      {report && (
+        <Modal onClose={() => setReport(null)} wide>
+          <ReportForm initialType={report} onCancel={() => setReport(null)} onSubmit={addItem} />
+        </Modal>
+      )}
+      {auth && (
+        <AuthModal
+          mode={auth}
+          intent={authIntent}
+          onClose={() => { setAuth(null); setPendingReport(null); setAuthIntent(null); }}
+          onAuth={handleAuth}
+          onSwitch={() => setAuth(auth === "signup" ? "signin" : "signup")}
+        />
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-xl bg-teal-900 px-4 py-3 text-sm text-white shadow-lg">
+          <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+          <span>
+            {toast.type === "returned"
+              ? <>Ticket <span className="font-mono text-amber-300">{toast.ref}</span> confirmed returned &amp; closed.</>
+              : <>Ticket <span className="font-mono text-amber-300">{toast.ref}</span> posted to the board.</>}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
