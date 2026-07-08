@@ -757,7 +757,7 @@ function ItemDetail({ item, onClose, user, onRequireAuth, onHandover }) {
             </div>
             <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4 text-sm">
               <p className="text-xs uppercase tracking-wide text-slate-400">Finder / Reporter</p>
-              <p className="mt-0.5 font-medium text-slate-800">{item.by || "Reclaim Desk member"}</p>
+              <p className="mt-0.5 font-medium text-slate-800">{item.by || "FoundIt member"}</p>
               <p className="mt-2 text-xs uppercase tracking-wide text-slate-400">Contact</p>
               <p className="mt-0.5 font-mono text-slate-800">{item.contact || demoPhone(item.id)}</p>
               {item.pickup && (
@@ -1187,8 +1187,7 @@ export default function App() {
               <HandHeart className="h-5 w-5" />
             </span>
             <div className="leading-tight">
-              <p className="font-serif text-lg font-semibold tracking-tight">Reclaim Desk</p>
-              <p className="font-mono text-xs uppercase tracking-widest text-teal-300">Community lost &amp; found</p>
+              <p className="font-serif font-bold tracking-tight" style={{ fontSize: "84px" }}>FoundIt</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -1226,15 +1225,16 @@ export default function App() {
         </div>
 
         {/* Hero */}
-        <div className="mx-auto max-w-screen-2xl px-4 pb-10 pt-4 sm:px-6">
+        <div className="mx-auto max-w-screen-2xl px-4 pb-10 pt-2 sm:px-6">
           <div className="grid items-center gap-6 lg:grid-cols-[70%_30%] lg:gap-8">
             {/* Left: text + search */}
             <div>
-              <h1 className="font-serif text-3xl font-semibold leading-tight sm:text-4xl md:text-5xl">
+              <h1 className="font-serif font-semibold leading-tight" style={{ fontSize: "40px" }}>
                 Lost something? Found something? <span className="text-amber-300">Let's reunite them.</span>
               </h1>
               <p className="mt-2 text-sm text-teal-100">
-                Post a claim ticket, search the board, and reclaim items through a verified, safe handover.
+                Nigeria's foremost community board for missing, lost &amp; found items since 2024.<br />
+                Post a report | search | connect | recover your items.
               </p>
               <div className="mt-5 flex flex-col gap-3 sm:flex-row">
                 <div className="relative flex-1">
@@ -1458,7 +1458,7 @@ export default function App() {
 
       <footer className="border-t border-slate-200 bg-white">
         <div className="mx-auto flex max-w-screen-2xl flex-col items-start justify-between gap-2 px-4 py-6 text-sm text-slate-500 sm:flex-row sm:items-center sm:px-6">
-          <p>Reclaim Desk — a verified community lost &amp; found board.</p>
+          <p>FoundIt — Nigeria's verified community lost &amp; found board.</p>
           <button onClick={() => setShowConditions(true)} className="font-medium text-teal-700 hover:underline">
             Security, legal &amp; service-charge conditions
           </button>
