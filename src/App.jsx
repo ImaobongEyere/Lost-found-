@@ -1253,6 +1253,28 @@ export default function App() {
                   I found something
                 </button>
               </div>
+
+              {/* App download badges */}
+              <div className="mt-4 flex flex-wrap gap-3">
+                <div className="inline-flex items-center gap-2.5 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 opacity-75">
+                  <svg viewBox="0 0 24 24" className="h-6 w-6 fill-white flex-none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.7 9.05 7.4c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.39-1.32 2.76-2.54 3.99zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+                  </svg>
+                  <div className="leading-tight">
+                    <p className="text-[10px] text-white/60">Coming Soon</p>
+                    <p className="text-sm font-semibold text-white">App Store</p>
+                  </div>
+                </div>
+                <div className="inline-flex items-center gap-2.5 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 opacity-75">
+                  <svg viewBox="0 0 24 24" className="h-6 w-6 fill-white flex-none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M3.18 23.76c.3.17.64.2.96.07l12.45-7.2-2.69-2.7-10.72 9.83zM.44 1.05C.17 1.37 0 1.83 0 2.4v19.2c0 .57.17 1.03.44 1.35l.07.07 10.76-10.76v-.25L.51.98l-.07.07zM20.12 9.53l-2.69-1.55-3.01 3.02 3.01 3.01 2.72-1.57c.78-.45.78-1.47-.03-1.91zM3.18.24L15.63 7.44l-2.69 2.69L2.22.3c.28-.16.65-.13.96-.06z"/>
+                  </svg>
+                  <div className="leading-tight">
+                    <p className="text-[10px] text-white/60">Coming Soon</p>
+                    <p className="text-sm font-semibold text-white">Google Play</p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Right: live map */}
