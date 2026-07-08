@@ -238,7 +238,7 @@ function Check1({ checked, onChange, children }) {
 function Modal({ children, onClose, wide }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 sm:p-8"
+      className="fixed inset-0 z-[2000] flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 sm:p-8"
       onClick={onClose}
     >
       <div
@@ -1183,7 +1183,7 @@ export default function App() {
 
         {/* Hero */}
         <div className="mx-auto max-w-7xl px-4 pb-10 pt-4 sm:px-6">
-          <div className="grid items-center gap-6 lg:grid-cols-2 lg:gap-10">
+          <div className="grid items-center gap-6 lg:grid-cols-[70%_30%] lg:gap-8">
             {/* Left: text + search */}
             <div>
               <h1 className="font-serif text-3xl font-semibold leading-tight sm:text-4xl md:text-5xl">
@@ -1449,7 +1449,7 @@ export default function App() {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-xl bg-teal-900 px-4 py-3 text-sm text-white shadow-lg">
+        <div className="fixed bottom-4 left-1/2 z-[2000] flex -translate-x-1/2 items-center gap-3 rounded-xl bg-teal-900 px-4 py-3 text-sm text-white shadow-lg">
           <CheckCircle2 className="h-5 w-5 text-emerald-400" />
           <span>
             {toast.type === "returned"
