@@ -55,8 +55,6 @@ const feeFor = (value) => {
   return { fee: 15000, band: "Above \u20A6500,000" };
 };
 
-/* Flat, one-time fee a claimant pays to unlock the finder's contact. */
-const ACCESS_FEE = 1000;
 
 /* Deterministic demo contact number, revealed only after the access fee is paid. */
 const demoPhone = (seed) => {
@@ -385,7 +383,7 @@ function ReportForm({ initialType, onCancel, onSubmit }) {
             I agree to the security protocol — claims are released only after identity and ownership verification, at a safe handover.
           </Check1>
           <Check1 checked={checks.fee} onChange={(v) => setChecks((s) => ({ ...s, fee: v }))}>
-            I acknowledge the service charge — listing is free; a verification &amp; handling fee (est. <strong>{NAIRA(est.fee)}</strong> for {est.band.toLowerCase()}) applies on a successful return.
+            I understand listing is free. A verification &amp; handling fee (est. <strong>{NAIRA(est.fee)}</strong> for {est.band.toLowerCase()}) applies only on a successful, confirmed return.
           </Check1>
           <Check1 checked={checks.terms} onChange={(v) => setChecks((s) => ({ ...s, terms: v }))}>
             I consent to the terms and privacy policy, including that my contact stays hidden until a claim is verified.
@@ -427,9 +425,9 @@ function ReportForm({ initialType, onCancel, onSubmit }) {
 function ItemDetail({ item, onClose, user, onRequireAuth, onHandover }) {
   const cat = catMap[item.category] || catMap.other;
   const { Icon } = cat;
-  const [step, setStep] = useState("view"); // view | claim | pay | unlocked | handover
+  const [step, setStep] = useState("view"); // view | claim | unlocked | handover
   const [answer, setAnswer] = useState("");
-  const [ack, setAck] = useState({ id: false, fee: false });
+  const [ack, setAck] = useState({ id: false });
   const [payRef, setPayRef] = useState(null);
   const [pickupType, setPickupType] = useState("person"); // person | proxy
   const [ownerIdFile, setOwnerIdFile] = useState("");
@@ -443,21 +441,8 @@ function ItemDetail({ item, onClose, user, onRequireAuth, onHandover }) {
     reader.readAsDataURL(file);
   };
 
-  const handlePay = () => {
-    const popup = new PaystackPop();
-    popup.newTransaction({
-      key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
-      email: user?.email || "guest@reclaimdesk.ng",
-      amount: ACCESS_FEE * 100, // kobo
-      onSuccess: (transaction) => {
-        setPayRef(transaction.reference);
-        setStep("unlocked");
-      },
-      onCancel: () => {},
-    });
-  };
   const est = feeFor(item.value);
-  const canSubmit = answer.trim().length > 3 && ack.id && ack.fee;
+  const canSubmit = answer.trim().length > 3 && ack.id;
 
   return (
     <Modal onClose={onClose} wide>
@@ -504,10 +489,6 @@ function ItemDetail({ item, onClose, user, onRequireAuth, onHandover }) {
           </div>
         ) : step === "view" ? (
           <>
-            <div className="mt-6 rounded-xl border border-teal-100 bg-teal-50 p-4">
-              <p className="flex items-center gap-2 text-sm font-semibold text-teal-900"><Receipt className="h-4 w-4" /> Finder access fee</p>
-              <p className="mt-1 text-sm text-teal-800">A one-time <strong>{NAIRA(ACCESS_FEE)}</strong> fee unlocks the finder's contact after you verify ownership. A tiered return handling fee may also apply on a successful return.</p>
-            </div>
             {user ? (
               <button
                 onClick={() => setStep("claim")}
@@ -537,9 +518,6 @@ function ItemDetail({ item, onClose, user, onRequireAuth, onHandover }) {
               <Check1 checked={ack.id} onChange={(v) => setAck((s) => ({ ...s, id: v }))}>
                 I will present a valid ID at a safe, verified handover point before the item is released.
               </Check1>
-              <Check1 checked={ack.fee} onChange={(v) => setAck((s) => ({ ...s, fee: v }))}>
-                I understand a <strong>{NAIRA(ACCESS_FEE)}</strong> access fee unlocks the finder's contact, and a return handling fee (about {NAIRA(est.fee)}) may apply on a successful return.
-              </Check1>
             </div>
             <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
               <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
@@ -549,31 +527,10 @@ function ItemDetail({ item, onClose, user, onRequireAuth, onHandover }) {
               <button onClick={() => setStep("view")} className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50">Back</button>
               <button
                 disabled={!canSubmit}
-                onClick={() => setStep("pay")}
+                onClick={() => setStep("unlocked")}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-800 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Continue to payment <ArrowRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        ) : step === "pay" ? (
-          <div className="mt-6">
-            <p className="flex items-center gap-2 font-serif text-lg font-semibold text-slate-800"><Lock className="h-5 w-5 text-teal-700" /> Unlock the finder</p>
-            <p className="mt-1 text-sm text-slate-500">Pay a one-time access fee to reveal the finder's contact and arrange a safe handover.</p>
-            <div className="mt-4 flex items-center justify-between rounded-xl border border-teal-100 bg-teal-50 p-4">
-              <span className="text-sm text-teal-900">Finder access fee</span>
-              <span className="font-serif text-2xl font-semibold text-teal-900">{NAIRA(ACCESS_FEE)}</span>
-            </div>
-            <div className="mt-3 flex items-start gap-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">
-              <Shield className="mt-0.5 h-4 w-4 flex-none text-teal-700" /> Secured by Paystack — pay with card, bank transfer, or USSD.
-            </div>
-            <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button onClick={() => setStep("claim")} className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50">Back</button>
-              <button
-                onClick={handlePay}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-800 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700"
-              >
-                Pay {NAIRA(ACCESS_FEE)} &amp; unlock <ArrowRight className="h-4 w-4" />
+                Verify &amp; unlock <ArrowRight className="h-4 w-4" />
               </button>
             </div>
           </div>
@@ -664,7 +621,7 @@ function ItemDetail({ item, onClose, user, onRequireAuth, onHandover }) {
             <div className="text-center">
               <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
               <p className="mt-2 font-serif text-lg font-semibold text-slate-800">Finder unlocked</p>
-              <p className="mt-1 text-sm text-slate-600">Access fee of {NAIRA(ACCESS_FEE)} paid. Contact the finder below and arrange a safe handover.</p>
+              <p className="mt-1 text-sm text-slate-600">Ownership verified. Contact the finder below and arrange a safe handover.</p>
             </div>
             <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4 text-sm">
               <p className="text-xs uppercase tracking-wide text-slate-400">Finder</p>
@@ -672,7 +629,6 @@ function ItemDetail({ item, onClose, user, onRequireAuth, onHandover }) {
               <p className="mt-2 text-xs uppercase tracking-wide text-slate-400">Contact</p>
               <p className="mt-0.5 font-mono text-slate-800">{item.contact || demoPhone(item.id)}</p>
             </div>
-            <p className="mt-2 text-center font-mono text-xs text-slate-400">Receipt {payRef}</p>
 
             {/* Handover protocol notice */}
             <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
@@ -732,7 +688,7 @@ function Conditions({ onClose }) {
           </Section>
           <Section Icon={Receipt} title="Service charge">
             <Li>Listing an item and browsing the board are always free.</Li>
-            <Li>A one-time finder access fee of <strong>{NAIRA(ACCESS_FEE)}</strong> is charged to a claimant to unlock the finder's contact, after ownership is verified.</Li>
+            <Li>Unlocking a finder's contact is free — no access fee is charged.</Li>
             <Li>A verification &amp; handling fee applies only on a successful, verified return:</Li>
             <div className="mt-2 overflow-hidden rounded-lg border border-slate-200">
               {[0, 20000, 100000, 500000, 500001].map((v, i) => {
@@ -786,14 +742,8 @@ function AuthModal({ mode, intent, onClose, onAuth, onSwitch }) {
           options: { data: { full_name: name.trim() || email.split("@")[0] } },
         });
         if (err) {
-          const msg = (err.message || "").toLowerCase();
-          if (msg.includes("already registered") || msg.includes("already been registered") || msg.includes("already exists")) {
-            setError("An account with this email already exists. Please sign in instead.");
-          } else {
-            setError(err.message || "Something went wrong. Please try again.");
-          }
+          setError("An account with this email already exists. Please sign in instead.");
         } else if (!data.user || data.user.identities?.length === 0) {
-          // Supabase silently returns success for existing emails — detect via empty identities
           setError("An account with this email already exists. Please sign in instead.");
         } else {
           setSubStep("check-email");
