@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { supabase, mapUser } from "./supabase";
 import PaystackPop from "@paystack/inline-js";
