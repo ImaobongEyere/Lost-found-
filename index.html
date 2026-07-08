@@ -3,9 +3,76 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Reclaim Desk — Community Lost &amp; Found</title>
+
+    <!-- Primary meta -->
+    <title>Reclaim Desk — Community Lost &amp; Found in Nigeria</title>
+    <meta name="description" content="Reclaim Desk is Nigeria's trusted community lost and found board. Report a lost item, list a found item, and reunite through a safe, verified handover. Serving Lagos, Abuja, Port Harcourt and beyond." />
+    <meta name="keywords" content="lost and found Nigeria, lost item Lagos, found item Abuja, reclaim lost property, community lost found board, report lost item, found item handover Nigeria" />
+    <meta name="author" content="Reclaim Desk" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://lost-found-git-main-aima4.vercel.app/" />
+
+    <!-- Theme -->
+    <meta name="theme-color" content="#134e4a" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Reclaim Desk" />
+    <meta property="og:title" content="Reclaim Desk — Community Lost &amp; Found in Nigeria" />
+    <meta property="og:description" content="Report a lost item or list something you found. Reclaim Desk connects losers and finders through a verified, safe handover process across Nigeria." />
+    <meta property="og:url" content="https://lost-found-git-main-aima4.vercel.app/" />
+    <meta property="og:locale" content="en_NG" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Reclaim Desk — Community Lost &amp; Found in Nigeria" />
+    <meta name="twitter:description" content="Report a lost item or list something you found. Safe, verified handovers across Nigeria." />
+
+    <!-- Preconnect to CDN for faster Leaflet load -->
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="dns-prefetch" href="https://unpkg.com" />
+    <link rel="preconnect" href="https://tile.openstreetmap.org" />
+    <link rel="dns-prefetch" href="https://tile.openstreetmap.org" />
+
+    <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- JSON-LD structured data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "https://lost-found-git-main-aima4.vercel.app/#website",
+          "url": "https://lost-found-git-main-aima4.vercel.app/",
+          "name": "Reclaim Desk",
+          "description": "Nigeria's community lost and found board — report lost items, list found items, and reunite through safe verified handovers.",
+          "inLanguage": "en-NG",
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": {
+              "@type": "EntryPoint",
+              "urlTemplate": "https://lost-found-git-main-aima4.vercel.app/?q={search_term_string}"
+            },
+            "query-input": "required name=search_term_string"
+          }
+        },
+        {
+          "@type": "Organization",
+          "@id": "https://lost-found-git-main-aima4.vercel.app/#organization",
+          "name": "Reclaim Desk",
+          "url": "https://lost-found-git-main-aima4.vercel.app/",
+          "description": "A verified community lost and found platform serving Nigeria.",
+          "areaServed": {
+            "@type": "Country",
+            "name": "Nigeria"
+          }
+        }
+      ]
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>
