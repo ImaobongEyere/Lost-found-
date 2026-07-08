@@ -1212,7 +1212,7 @@ export default function App() {
             </div>
 
             {/* Right: live map */}
-            <div className="hidden h-64 lg:block">
+            <div className="hidden h-60 pr-6 pb-4 lg:block">
               <LiveMap items={items} />
             </div>
           </div>
