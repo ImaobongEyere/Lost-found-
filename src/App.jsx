@@ -780,20 +780,23 @@ function AuthModal({ mode, intent, onClose, onAuth, onSwitch }) {
     setLoading(true);
     try {
       if (isSignup) {
-        const { error: err } = await supabase.auth.signUp({
+        const { data, error: err } = await supabase.auth.signUp({
           email,
           password: pw,
           options: { data: { full_name: name.trim() || email.split("@")[0] } },
         });
         if (err) {
-          const msg = err.message.toLowerCase();
+          const msg = (err.message || "").toLowerCase();
           if (msg.includes("already registered") || msg.includes("already been registered") || msg.includes("already exists")) {
             setError("An account with this email already exists. Please sign in instead.");
           } else {
-            setError(err.message);
+            setError(err.message || "Something went wrong. Please try again.");
           }
+        } else if (!data.user || data.user.identities?.length === 0) {
+          // Supabase silently returns success for existing emails — detect via empty identities
+          setError("An account with this email already exists. Please sign in instead.");
         } else {
-          setSubStep("otp");
+          setSubStep("check-email");
         }
       } else {
         const { data, error: err } = await supabase.auth.signInWithPassword({ email, password: pw });
