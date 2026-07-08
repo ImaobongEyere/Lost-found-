@@ -870,37 +870,21 @@ function AuthModal({ mode, intent, onClose, onAuth, onSwitch }) {
         ) : (
           <>
             <h2 className="mt-1 font-serif text-2xl font-semibold text-slate-800">Check your email</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              We sent a 6-digit code to <span className="font-medium text-slate-700">{email}</span>. Enter it below to verify your account.
-            </p>
-            <div className="mt-5">
-              <Field label="Verification code">
-                <input
-                  className={inputCls + " text-center font-mono text-lg tracking-widest"}
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="000000"
-                  maxLength={6}
-                  inputMode="numeric"
-                  autoFocus
-                />
-              </Field>
+            <div className="mt-4 rounded-xl border border-teal-100 bg-teal-50 p-5 text-center">
+              <p className="text-sm text-teal-800">
+                We sent a confirmation link to{" "}
+                <span className="font-semibold">{email}</span>.
+              </p>
+              <p className="mt-2 text-sm text-teal-700">
+                Click the link in the email to verify your account — you'll be logged in automatically.
+              </p>
             </div>
-            {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-            <button
-              disabled={otp.length !== 6 || loading}
-              onClick={handleVerifyOtp}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-teal-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-300 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {loading ? "Verifying…" : "Verify & continue"}
-              {!loading && <ArrowRight className="h-4 w-4" />}
-            </button>
-            <button
-              onClick={() => { setSubStep("form"); setOtp(""); setError(null); }}
-              className="mt-3 w-full text-center text-sm text-slate-400 hover:text-slate-600"
-            >
-              ← Back
-            </button>
+            <p className="mt-4 text-center text-xs text-slate-400">
+              Didn't receive it? Check your spam folder or{" "}
+              <button onClick={() => { setSubStep("form"); setError(null); }} className="text-teal-700 hover:underline">
+                try again
+              </button>.
+            </p>
           </>
         )}
       </div>
@@ -937,7 +921,13 @@ export default function App() {
       if (session?.user) setUser(mapUser(session.user));
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ? mapUser(session.user) : null);
+      if (session?.user) {
+        setUser(mapUser(session.user));
+        setAuth(null);
+        setAuthIntent(null);
+      } else {
+        setUser(null);
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
