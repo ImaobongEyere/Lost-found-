@@ -1137,7 +1137,7 @@ export default function App() {
     <div className="min-h-screen bg-stone-100 font-sans text-slate-800">
       {/* Desk header */}
       <header className="bg-teal-900 text-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
+        <div className="mx-auto flex max-w-screen-2xl items-center justify-between px-4 py-4 sm:px-6">
           <div className="flex items-center gap-2.5">
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10">
               <HandHeart className="h-5 w-5" />
@@ -1182,7 +1182,7 @@ export default function App() {
         </div>
 
         {/* Hero */}
-        <div className="mx-auto max-w-7xl px-4 pb-10 pt-4 sm:px-6">
+        <div className="mx-auto max-w-screen-2xl px-4 pb-10 pt-4 sm:px-6">
           <div className="grid items-center gap-6 lg:grid-cols-[70%_30%] lg:gap-8">
             {/* Left: text + search */}
             <div>
@@ -1212,7 +1212,7 @@ export default function App() {
             </div>
 
             {/* Right: live map */}
-            <div className="hidden h-60 pr-6 pb-4 lg:block">
+            <div className="h-48 pr-2 pb-4 sm:pr-6 lg:h-60">
               <LiveMap items={items} />
             </div>
           </div>
@@ -1221,7 +1221,7 @@ export default function App() {
 
       {/* Toolbar */}
       <div className="sticky top-0 z-30 border-b border-slate-200 bg-stone-100/90 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6">
+        <div className="mx-auto max-w-screen-2xl px-4 py-3 sm:px-6">
           <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
             {[
               { id: "all", label: "All open", n: counts.all },
@@ -1384,7 +1384,7 @@ export default function App() {
       </div>
 
       {/* Board */}
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+      <main className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6">
         <div className="mb-4 flex items-baseline justify-between">
           <p className="text-sm text-slate-500">
             <span className="font-semibold text-slate-700">{visible.length}</span> {visible.length === 1 ? "ticket" : "tickets"} on the board
@@ -1413,7 +1413,7 @@ export default function App() {
       </main>
 
       <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-2 px-4 py-6 text-sm text-slate-500 sm:flex-row sm:items-center sm:px-6">
+        <div className="mx-auto flex max-w-screen-2xl flex-col items-start justify-between gap-2 px-4 py-6 text-sm text-slate-500 sm:flex-row sm:items-center sm:px-6">
           <p>Reclaim Desk — a verified community lost &amp; found board.</p>
           <button onClick={() => setShowConditions(true)} className="font-medium text-teal-700 hover:underline">
             Security, legal &amp; service-charge conditions
