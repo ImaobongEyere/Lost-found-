@@ -1,0 +1,20 @@
+{
+  "name": "FoundIt",
+  "short_name": "FoundIt",
+  "description": "Nigeria's foremost community board for missing, lost & found items. Post a report, search, connect, recover your items.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#134e4a",
+  "theme_color": "#134e4a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["utilities", "social"],
+  "lang": "en-NG"
+}
