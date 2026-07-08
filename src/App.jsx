@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
+import L from "leaflet";
 import { supabase, mapUser } from "./supabase";
 import PaystackPop from "@paystack/inline-js";
 import {
@@ -55,6 +56,115 @@ const feeFor = (value) => {
   return { fee: 15000, band: "Above \u20A6500,000" };
 };
 
+
+/* Approximate coordinates for common Nigerian locations used by the live map. */
+const CITY_COORDS = {
+  "ikeja": [6.6018, 3.3515],
+  "yaba": [6.5095, 3.3711],
+  "lekki": [6.4355, 3.4654],
+  "surulere": [6.5027, 3.3581],
+  "wuse": [9.0765, 7.4898],
+  "university of lagos": [6.5158, 3.3895],
+  "unilag": [6.5158, 3.3895],
+  "ojota": [6.5997, 3.3831],
+  "gwarinpa": [9.1027, 7.4164],
+  "national theatre": [6.4534, 3.3879],
+  "victoria island": [6.4281, 3.4219],
+  "ikoyi": [6.4474, 3.4348],
+  "ajah": [6.4730, 3.5607],
+  "festac": [6.4685, 3.2836],
+  "maryland": [6.5705, 3.3631],
+  "mushin": [6.5355, 3.3503],
+  "oshodi": [6.5553, 3.3429],
+  "abuja": [9.0579, 7.4951],
+  "maitama": [9.0897, 7.4857],
+  "garki": [9.0486, 7.4813],
+  "kano": [12.0022, 8.5920],
+  "port harcourt": [4.8156, 7.0498],
+  "ibadan": [7.3776, 3.9470],
+  "lagos": [6.5244, 3.3792],
+};
+
+const approxCoords = (location) => {
+  if (!location) return null;
+  const lower = location.toLowerCase();
+  for (const [key, coords] of Object.entries(CITY_COORDS)) {
+    if (lower.includes(key)) return coords;
+  }
+  return null;
+};
+
+function LiveMap({ items }) {
+  const containerRef = useRef(null);
+  const mapRef = useRef(null);
+  const markersRef = useRef([]);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    if (!mapRef.current) {
+      mapRef.current = L.map(containerRef.current, {
+        zoomControl: true,
+        scrollWheelZoom: false,
+        attributionControl: false,
+      }).setView([6.5244, 3.3792], 11);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+      }).addTo(mapRef.current);
+
+      L.control.attribution({ prefix: false })
+        .addAttribution('© <a href="https://openstreetmap.org/copyright">OSM</a>')
+        .addTo(mapRef.current);
+    }
+
+    markersRef.current.forEach((m) => m.remove());
+    markersRef.current = [];
+
+    items.forEach((item) => {
+      const coords = approxCoords(item.location);
+      if (!coords) return;
+      const color =
+        item.type === "lost" ? "#f59e0b" :
+        item.type === "found" ? "#0f766e" : "#64748b";
+      const jitter = () => (Math.random() - 0.5) * 0.004;
+      const m = L.circleMarker([coords[0] + jitter(), coords[1] + jitter()], {
+        radius: 8,
+        fillColor: color,
+        color: "#fff",
+        weight: 2,
+        fillOpacity: 0.88,
+      })
+        .addTo(mapRef.current)
+        .bindPopup(
+          `<strong style="font-size:13px">${item.title}</strong><br>` +
+          `<span style="font-size:11px;color:#64748b">${item.location}</span>`
+        );
+      markersRef.current.push(m);
+    });
+
+    return () => {};
+  }, [items]);
+
+  useEffect(() => {
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, []);
+
+  return (
+    <div className="relative h-full w-full overflow-hidden rounded-2xl shadow-lg ring-1 ring-white/20">
+      <div ref={containerRef} style={{ height: "100%", width: "100%" }} />
+      <div className="pointer-events-none absolute bottom-2 left-2 flex items-center gap-2 rounded-lg bg-white/90 px-2.5 py-1.5 text-xs shadow backdrop-blur">
+        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400" /> Lost</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full bg-teal-700" /> Found</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full bg-slate-400" /> Returned</span>
+      </div>
+    </div>
+  );
+}
 
 /* Deterministic demo contact number, revealed only after the access fee is paid. */
 const demoPhone = (seed) => {
@@ -1073,29 +1183,38 @@ export default function App() {
 
         {/* Hero */}
         <div className="mx-auto max-w-7xl px-4 pb-10 pt-4 sm:px-6">
-          <h1 className="max-w-2xl font-serif text-3xl font-semibold leading-tight sm:text-4xl md:text-5xl">
-            Lost something? Found something? <span className="text-amber-300">Let's reunite them.</span>
-          </h1>
-          <p className="mt-2 max-w-xl text-sm text-teal-100">
-            Post a claim ticket, search the board, and reclaim items through a verified, safe handover.
-          </p>
-
-          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-            <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-3.5 h-5 w-5 text-slate-400" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by item, place, or ticket code (e.g. LF-2381)"
-                className="w-full rounded-xl border border-transparent bg-white py-3 pl-11 pr-4 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-amber-300"
-              />
+          <div className="grid items-center gap-6 lg:grid-cols-2 lg:gap-10">
+            {/* Left: text + search */}
+            <div>
+              <h1 className="font-serif text-3xl font-semibold leading-tight sm:text-4xl md:text-5xl">
+                Lost something? Found something? <span className="text-amber-300">Let's reunite them.</span>
+              </h1>
+              <p className="mt-2 text-sm text-teal-100">
+                Post a claim ticket, search the board, and reclaim items through a verified, safe handover.
+              </p>
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3.5 top-3.5 h-5 w-5 text-slate-400" />
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search by item, place, or ticket code (e.g. LF-2381)"
+                    className="w-full rounded-xl border border-transparent bg-white py-3 pl-11 pr-4 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-amber-300"
+                  />
+                </div>
+                <button
+                  onClick={() => openReport("found")}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+                >
+                  I found something
+                </button>
+              </div>
             </div>
-            <button
-              onClick={() => openReport("found")}
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/10"
-            >
-              I found something
-            </button>
+
+            {/* Right: live map */}
+            <div className="hidden h-64 lg:block">
+              <LiveMap items={items} />
+            </div>
           </div>
         </div>
       </header>
