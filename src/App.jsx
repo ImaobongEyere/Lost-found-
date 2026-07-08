@@ -27,15 +27,15 @@ const CATEGORIES = [
 const catMap = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
 
 const SEED = [
-  { type: "found", title: "iPhone 13, teal case", category: "electronics", location: "Ikeja City Mall, Lagos", date: "2026-07-03", by: "Mall Security", note: "Handed in at the info desk. Locked; owner must confirm lock-screen photo.", value: 320000 },
-  { type: "lost", title: "Brown leather wallet", category: "wallets", location: "Yaba Bus Stop, Lagos", date: "2026-07-05", by: "Chidi A.", note: "Contains a national ID and two bank cards. Small ink stain inside.", reward: 15000, value: 20000 },
-  { type: "found", title: "Bunch of keys, blue tag", category: "keys", location: "Lekki Phase 1 Gym", date: "2026-07-04", by: "Front Desk", note: "Five keys on a ring with a small blue plastic tag.", value: 5000 },
-  { type: "lost", title: "National ID card", category: "documents", location: "Surulere, Lagos", date: "2026-07-02", by: "Amaka O.", note: "Dropped somewhere between the market and the bank.", value: 0 },
-  { type: "found", title: "Silver wristwatch", category: "jewelry", location: "Wuse Market, Abuja", date: "2026-07-01", by: "Trader stall 14", note: "Left on a counter. Engraving on the back for verification.", value: 45000 },
-  { type: "lost", title: "Black backpack, laptop inside", category: "wallets", location: "University of Lagos", date: "2026-06-30", by: "Tunde B.", note: "Contains a 14-inch laptop and lecture notes. Front zip is broken.", reward: 30000, value: 400000 },
-  { type: "found", title: "Set of car documents", category: "documents", location: "Ojota, Lagos", date: "2026-07-06", by: "Danladi M.", note: "Vehicle papers in a plastic folder. Name partly visible.", value: 0 },
+  { type: "found", title: "iPhone 13, teal case", category: "electronics", location: "Ikeja City Mall, Lagos", pickup: "Ikeja City Mall, Info Desk (ground floor)", date: "2026-07-03", by: "Mall Security", note: "Handed in at the info desk. Locked; owner must confirm lock-screen photo.", value: 320000 },
+  { type: "lost", title: "Brown leather wallet", category: "wallets", location: "Yaba Bus Stop, Lagos", pickup: "Yaba Bus Stop, opposite UBA branch", date: "2026-07-05", by: "Chidi A.", note: "Contains a national ID and two bank cards. Small ink stain inside.", reward: 15000, value: 20000 },
+  { type: "found", title: "Bunch of keys, blue tag", category: "keys", location: "Lekki Phase 1 Gym", pickup: "Lekki Phase 1 Gym, Front Desk", date: "2026-07-04", by: "Front Desk", note: "Five keys on a ring with a small blue plastic tag.", value: 5000 },
+  { type: "lost", title: "National ID card", category: "documents", location: "Surulere, Lagos", pickup: "Surulere, Ojuelegba area", date: "2026-07-02", by: "Amaka O.", note: "Dropped somewhere between the market and the bank.", value: 0 },
+  { type: "found", title: "Silver wristwatch", category: "jewelry", location: "Wuse Market, Abuja", pickup: "Wuse Market, Gate 3 entrance", date: "2026-07-01", by: "Trader stall 14", note: "Left on a counter. Engraving on the back for verification.", value: 45000 },
+  { type: "lost", title: "Black backpack, laptop inside", category: "wallets", location: "University of Lagos", pickup: "University of Lagos, Main Gate security post", date: "2026-06-30", by: "Tunde B.", note: "Contains a 14-inch laptop and lecture notes. Front zip is broken.", reward: 30000, value: 400000 },
+  { type: "found", title: "Set of car documents", category: "documents", location: "Ojota, Lagos", pickup: "Ojota Motor Park, park manager's office", date: "2026-07-06", by: "Danladi M.", note: "Vehicle papers in a plastic folder. Name partly visible.", value: 0 },
   { type: "returned", title: "Grey tabby cat", category: "pets", location: "Gwarinpa, Abuja", date: "2026-06-28", by: "Blessing E.", note: "Reunited with owner after collar tag was verified.", value: 0 },
-  { type: "found", title: "Prescription glasses", category: "other", location: "National Theatre, Lagos", date: "2026-07-05", by: "Usher team", note: "Thin gold frames in a hard black case.", value: 12000 },
+  { type: "found", title: "Prescription glasses", category: "other", location: "National Theatre, Lagos", pickup: "National Theatre, main entrance", date: "2026-07-05", by: "Usher team", note: "Thin gold frames in a hard black case.", value: 12000 },
 ];
 
 const SEED_ITEMS = SEED.map((it, i) => ({
@@ -121,25 +121,39 @@ function LiveMap({ items }) {
     markersRef.current = [];
 
     items.forEach((item) => {
-      const coords = approxCoords(item.location);
-      if (!coords) return;
-      const color =
-        item.type === "lost" ? "#f59e0b" :
-        item.type === "found" ? "#0f766e" : "#64748b";
       const jitter = () => (Math.random() - 0.5) * 0.004;
-      const m = L.circleMarker([coords[0] + jitter(), coords[1] + jitter()], {
-        radius: 8,
-        fillColor: color,
-        color: "#fff",
-        weight: 2,
-        fillOpacity: 0.88,
-      })
-        .addTo(mapRef.current)
-        .bindPopup(
-          `<strong style="font-size:13px">${item.title}</strong><br>` +
-          `<span style="font-size:11px;color:#64748b">${item.location}</span>`
-        );
-      markersRef.current.push(m);
+
+      const locCoords = approxCoords(item.location);
+      if (locCoords) {
+        const color =
+          item.type === "lost" ? "#f59e0b" :
+          item.type === "found" ? "#0f766e" : "#64748b";
+        const m = L.circleMarker([locCoords[0] + jitter(), locCoords[1] + jitter()], {
+          radius: 8, fillColor: color, color: "#fff", weight: 2, fillOpacity: 0.88,
+        })
+          .addTo(mapRef.current)
+          .bindPopup(
+            `<strong style="font-size:13px">${item.title}</strong><br>` +
+            `<span style="font-size:11px;color:#64748b">📍 ${item.location}</span>`
+          );
+        markersRef.current.push(m);
+      }
+
+      if (item.pickup) {
+        const pickupCoords = approxCoords(item.pickup);
+        if (pickupCoords) {
+          const p = L.circleMarker([pickupCoords[0] + jitter(), pickupCoords[1] + jitter()], {
+            radius: 7, fillColor: "#2563eb", color: "#fff", weight: 2, fillOpacity: 0.9,
+          })
+            .addTo(mapRef.current)
+            .bindPopup(
+              `<strong style="font-size:13px">Pickup point</strong><br>` +
+              `<span style="font-size:11px;color:#1e40af">🤝 ${item.pickup}</span><br>` +
+              `<span style="font-size:11px;color:#64748b">${item.title}</span>`
+            );
+          markersRef.current.push(p);
+        }
+      }
     });
 
     return () => {};
@@ -157,10 +171,11 @@ function LiveMap({ items }) {
   return (
     <div className="relative h-full w-full overflow-hidden rounded-2xl shadow-lg ring-1 ring-white/20">
       <div ref={containerRef} style={{ height: "100%", width: "100%" }} />
-      <div className="pointer-events-none absolute bottom-2 left-2 flex items-center gap-2 rounded-lg bg-white/90 px-2.5 py-1.5 text-xs shadow backdrop-blur">
+      <div className="pointer-events-none absolute bottom-2 left-2 flex flex-wrap items-center gap-2 rounded-lg bg-white/90 px-2.5 py-1.5 text-xs shadow backdrop-blur">
         <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400" /> Lost</span>
         <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full bg-teal-700" /> Found</span>
         <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full bg-slate-400" /> Returned</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-600" /> Pickup</span>
       </div>
     </div>
   );
@@ -357,6 +372,7 @@ const emptyForm = {
   title: "",
   category: "electronics",
   location: "",
+  pickup: "",
   date: "",
   by: "",
   contact: "",
@@ -444,6 +460,12 @@ function ReportForm({ initialType, onCancel, onSubmit }) {
         </Field>
         <Field label={f.type === "lost" ? "Where did you lose it?" : "Where did you find it?"}>
           <input className={inputCls} value={f.location} onChange={set("location")} placeholder="Area, landmark, city" />
+        </Field>
+        <Field label="Pickup / handover spot" hint="Where can the owner collect the item, or where would you like to meet?">
+          <div className="relative">
+            <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <input className={inputCls + " pl-9"} value={f.pickup} onChange={set("pickup")} placeholder="e.g. Ikeja Mall info desk, Yaba bus stop, UBA branch entrance" />
+          </div>
         </Field>
         <Field label="Date">
           <input type="date" className={inputCls} value={f.date} onChange={set("date")} />
@@ -734,10 +756,18 @@ function ItemDetail({ item, onClose, user, onRequireAuth, onHandover }) {
               <p className="mt-1 text-sm text-slate-600">Ownership verified. Contact the finder below and arrange a safe handover.</p>
             </div>
             <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4 text-sm">
-              <p className="text-xs uppercase tracking-wide text-slate-400">Finder</p>
+              <p className="text-xs uppercase tracking-wide text-slate-400">Finder / Reporter</p>
               <p className="mt-0.5 font-medium text-slate-800">{item.by || "Reclaim Desk member"}</p>
               <p className="mt-2 text-xs uppercase tracking-wide text-slate-400">Contact</p>
               <p className="mt-0.5 font-mono text-slate-800">{item.contact || demoPhone(item.id)}</p>
+              {item.pickup && (
+                <>
+                  <p className="mt-3 text-xs uppercase tracking-wide text-slate-400">Pickup / Handover spot</p>
+                  <p className="mt-0.5 flex items-start gap-1.5 font-medium text-teal-800">
+                    <MapPin className="mt-0.5 h-4 w-4 flex-none text-teal-600" />{item.pickup}
+                  </p>
+                </>
+              )}
             </div>
 
             {/* Handover protocol notice */}
