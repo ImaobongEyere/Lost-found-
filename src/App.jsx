@@ -1404,7 +1404,7 @@ export default function App() {
             </button>
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid grid-cols-3 gap-3 lg:grid-cols-4 xl:grid-cols-5">
             {visible.map((it) => (
               <TicketCard key={it.id} item={it} onOpen={setSelected} />
             ))}
