@@ -854,7 +854,7 @@ function Conditions({ onClose }) {
 /* Sign up / log in                                                    */
 /* ------------------------------------------------------------------ */
 function AuthModal({ mode, intent, onClose, onAuth, onSwitch }) {
-  const [subStep, setSubStep] = useState("form"); // "form" | "otp"
+  const [subStep, setSubStep] = useState("form"); // "form" | "otp" | "forgot" | "forgot-sent"
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
@@ -923,6 +923,23 @@ function AuthModal({ mode, intent, onClose, onAuth, onSwitch }) {
     }
   };
 
+  const handleForgotPassword = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin,
+      });
+      if (err) {
+        setError(err.message || "Could not send reset email. Please try again.");
+      } else {
+        setSubStep("forgot-sent");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleVerifyOtp = async () => {
     setError(null);
     setLoading(true);
@@ -976,12 +993,74 @@ function AuthModal({ mode, intent, onClose, onAuth, onSwitch }) {
               {loading ? "Please wait…" : isSignup ? "Create account" : "Log in"}
               {!loading && <ArrowRight className="h-4 w-4" />}
             </button>
-            <p className="mt-4 text-center text-sm text-slate-500">
+            {!isSignup && (
+              <p className="mt-3 text-center text-xs text-slate-400">
+                Forgot your password?{" "}
+                <button
+                  onClick={() => { setSubStep("forgot"); setError(null); }}
+                  className="font-medium text-teal-700 hover:underline"
+                >
+                  Reset it
+                </button>
+              </p>
+            )}
+            <p className="mt-3 text-center text-sm text-slate-500">
               {isSignup ? "Already have an account?" : "New here?"}{" "}
               <button onClick={onSwitch} className="font-medium text-teal-700 hover:underline">
                 {isSignup ? "Log in" : "Create one"}
               </button>
             </p>
+          </>
+        ) : subStep === "forgot" ? (
+          <>
+            <h2 className="mt-1 font-serif text-2xl font-semibold text-slate-800">Reset your password</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Enter your email and we'll send you a link to set a new password.
+            </p>
+            <div className="mt-5">
+              <Field label="Email">
+                <input
+                  type="email"
+                  className={inputCls}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  autoFocus
+                />
+              </Field>
+            </div>
+            {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+            <button
+              disabled={!email.includes("@") || loading}
+              onClick={handleForgotPassword}
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-teal-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-300 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {loading ? "Sending…" : "Send reset link"} {!loading && <ArrowRight className="h-4 w-4" />}
+            </button>
+            <p className="mt-4 text-center text-xs text-slate-400">
+              <button onClick={() => { setSubStep("form"); setError(null); }} className="text-teal-700 hover:underline">
+                Back to sign in
+              </button>
+            </p>
+          </>
+        ) : subStep === "forgot-sent" ? (
+          <>
+            <div className="mt-2 flex flex-col items-center text-center">
+              <CheckCircle2 className="h-12 w-12 text-emerald-500" />
+              <h2 className="mt-3 font-serif text-2xl font-semibold text-slate-800">Check your email</h2>
+              <p className="mt-2 text-sm text-slate-500">
+                We sent a password reset link to{" "}
+                <span className="font-semibold text-slate-700">{email}</span>.
+                Click the link in the email to set a new password.
+              </p>
+              <p className="mt-2 text-xs text-slate-400">Don't see it? Check your spam folder.</p>
+            </div>
+            <button
+              onClick={() => { setSubStep("form"); setError(null); }}
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 px-5 py-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+            >
+              Back to sign in
+            </button>
           </>
         ) : (
           <>
@@ -1038,6 +1117,92 @@ function AuthModal({ mode, intent, onClose, onAuth, onSwitch }) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Reset password modal (shown after clicking email reset link)        */
+/* ------------------------------------------------------------------ */
+function ResetPasswordModal({ onClose }) {
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [done, setDone] = useState(false);
+
+  const canSubmit = pw.length >= 6 && pw === pw2;
+
+  const handleReset = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const { error: err } = await supabase.auth.updateUser({ password: pw });
+      if (err) {
+        setError(err.message || "Could not update password. Please try again.");
+      } else {
+        setDone(true);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-6 sm:p-8">
+        <Eyebrow>Password reset</Eyebrow>
+        {done ? (
+          <div className="flex flex-col items-center text-center">
+            <CheckCircle2 className="mt-2 h-12 w-12 text-emerald-500" />
+            <h2 className="mt-3 font-serif text-2xl font-semibold text-slate-800">Password updated</h2>
+            <p className="mt-2 text-sm text-slate-500">You're all set. You can now sign in with your new password.</p>
+            <button
+              onClick={onClose}
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-teal-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-700"
+            >
+              Done
+            </button>
+          </div>
+        ) : (
+          <>
+            <h2 className="mt-1 font-serif text-2xl font-semibold text-slate-800">Set a new password</h2>
+            <p className="mt-1 text-sm text-slate-500">Choose a new password for your account.</p>
+            <div className="mt-5 grid gap-3">
+              <Field label="New password" hint="At least 6 characters">
+                <input
+                  type="password"
+                  className={inputCls}
+                  value={pw}
+                  onChange={(e) => setPw(e.target.value)}
+                  placeholder="New password"
+                  autoFocus
+                />
+              </Field>
+              <Field label="Confirm new password">
+                <input
+                  type="password"
+                  className={inputCls}
+                  value={pw2}
+                  onChange={(e) => setPw2(e.target.value)}
+                  placeholder="Repeat password"
+                />
+              </Field>
+            </div>
+            {pw2 && pw !== pw2 && (
+              <p className="mt-2 text-xs text-red-600">Passwords do not match.</p>
+            )}
+            {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+            <button
+              disabled={!canSubmit || loading}
+              onClick={handleReset}
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-teal-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-300 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {loading ? "Saving…" : "Save new password"} {!loading && <ArrowRight className="h-4 w-4" />}
+            </button>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Main app                                                            */
 /* ------------------------------------------------------------------ */
 export default function App() {
@@ -1059,14 +1224,18 @@ export default function App() {
   const [auth, setAuth] = useState(null); // null | 'signin' | 'signup'
   const [authIntent, setAuthIntent] = useState(null); // 'report' | 'claim'
   const [pendingReport, setPendingReport] = useState(null);
+  const [resetPw, setResetPw] = useState(false);
 
   // Restore session on load and listen for auth state changes
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) setUser(mapUser(session.user));
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setResetPw(true);
+        setAuth(null);
+      } else if (session?.user) {
         setUser(mapUser(session.user));
         setAuth(null);
         setAuthIntent(null);
@@ -1550,6 +1719,7 @@ export default function App() {
           onSwitch={() => setAuth(auth === "signup" ? "signin" : "signup")}
         />
       )}
+      {resetPw && <ResetPasswordModal onClose={() => setResetPw(false)} />}
 
       {/* Toast */}
       {toast && (
