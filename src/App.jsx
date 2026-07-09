@@ -882,18 +882,15 @@ function AuthModal({ mode, intent, onClose, onAuth, onSwitch }) {
           options: { data: { full_name: name.trim() || email.split("@")[0] } },
         });
         if (err) {
-          console.error("Supabase signUp error:", err, JSON.stringify(err));
           const msg = err.message && err.message !== "{}" ? err.message : "Sign-up failed — the service may be temporarily unavailable. Please try again in a moment.";
           setError(msg);
         } else if (!data.user || data.user.identities?.length === 0) {
-          // Confirmed duplicate — offer to resend OTP in case account is unconfirmed
-          const { error: resendErr } = await supabase.auth.resend({ type: "signup", email });
-          if (resendErr) {
-            setError("An account with this email already exists. Please sign in instead.");
-          } else {
-            setSubStep("otp");
-          }
+          setError("An account with this email already exists. Please sign in instead.");
+        } else if (data.session) {
+          // Email confirmation disabled — user is logged in immediately
+          onAuth(mapUser(data.user));
         } else {
+          // Email confirmation enabled — show verification screen
           setSubStep("otp");
         }
       } else {
