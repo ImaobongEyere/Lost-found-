@@ -882,6 +882,7 @@ function AuthModal({ mode, intent, onClose, onAuth, onSwitch }) {
           options: { data: { full_name: name.trim() || email.split("@")[0] } },
         });
         if (err) {
+          console.error("Supabase signUp error:", err, JSON.stringify(err));
           const msg = err.message && err.message !== "{}" ? err.message : "Sign-up failed — the service may be temporarily unavailable. Please try again in a moment.";
           setError(msg);
         } else if (!data.user || data.user.identities?.length === 0) {
