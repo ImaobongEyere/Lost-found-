@@ -1228,6 +1228,15 @@ export default function App() {
 
   // Restore session on load and listen for auth state changes
   useEffect(() => {
+    // Detect password-recovery redirect from email link (hash or query param)
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const queryParams = new URLSearchParams(window.location.search);
+    if (hashParams.get("type") === "recovery" || queryParams.get("type") === "recovery") {
+      setResetPw(true);
+      // Clean the token out of the URL bar
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) setUser(mapUser(session.user));
     });
