@@ -882,9 +882,15 @@ function AuthModal({ mode, intent, onClose, onAuth, onSwitch }) {
           options: { data: { full_name: name.trim() || email.split("@")[0] } },
         });
         if (err) {
-          setError("An account with this email already exists. Please sign in instead.");
+          setError(err.message || "Sign-up failed. Please try again.");
         } else if (!data.user || data.user.identities?.length === 0) {
-          setError("An account with this email already exists. Please sign in instead.");
+          // Confirmed duplicate — offer to resend OTP in case account is unconfirmed
+          const { error: resendErr } = await supabase.auth.resend({ type: "signup", email });
+          if (resendErr) {
+            setError("An account with this email already exists. Please sign in instead.");
+          } else {
+            setSubStep("otp");
+          }
         } else {
           setSubStep("otp");
         }
@@ -901,6 +907,22 @@ function AuthModal({ mode, intent, onClose, onAuth, onSwitch }) {
     }
   };
 
+  const handleResendOtp = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const { error: err } = await supabase.auth.resend({ type: "signup", email });
+      if (err) {
+        setError("Could not resend the code. " + err.message);
+      } else {
+        setOtp("");
+        setError(null);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleVerifyOtp = async () => {
     setError(null);
     setLoading(true);
@@ -911,10 +933,11 @@ function AuthModal({ mode, intent, onClose, onAuth, onSwitch }) {
         type: "signup",
       });
       if (err) {
-        setError("Invalid or expired code. Check your email and try again.");
-      } else {
+        setError("Invalid or expired code. Try requesting a new one below.");
+      } else if (data.user) {
         onAuth(mapUser(data.user));
       }
+      // If data.user is null the onAuthStateChange listener handles the session
     } finally {
       setLoading(false);
     }
@@ -986,12 +1009,27 @@ function AuthModal({ mode, intent, onClose, onAuth, onSwitch }) {
             >
               {loading ? "Verifying…" : "Verify & continue"} {!loading && <ArrowRight className="h-4 w-4" />}
             </button>
-            <p className="mt-4 text-center text-xs text-slate-400">
-              Didn't receive a code? Check your spam folder or{" "}
-              <button onClick={() => { setSubStep("form"); setOtp(""); setError(null); }} className="text-teal-700 hover:underline">
-                try again
-              </button>.
-            </p>
+            <div className="mt-4 flex flex-col items-center gap-2">
+              <p className="text-center text-xs text-slate-400">
+                Didn't receive a code? Check your spam folder, or:
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  disabled={loading}
+                  onClick={handleResendOtp}
+                  className="text-xs font-medium text-teal-700 hover:underline disabled:opacity-40"
+                >
+                  {loading ? "Sending…" : "Resend code"}
+                </button>
+                <span className="text-slate-300">·</span>
+                <button
+                  onClick={() => { setSubStep("form"); setOtp(""); setError(null); }}
+                  className="text-xs text-slate-500 hover:underline"
+                >
+                  Change email
+                </button>
+              </div>
+            </div>
           </>
         )}
       </div>
