@@ -882,7 +882,8 @@ function AuthModal({ mode, intent, onClose, onAuth, onSwitch }) {
           options: { data: { full_name: name.trim() || email.split("@")[0] } },
         });
         if (err) {
-          setError(err.message || "Sign-up failed. Please try again.");
+          const msg = err.message && err.message !== "{}" ? err.message : "Sign-up failed — the service may be temporarily unavailable. Please try again in a moment.";
+          setError(msg);
         } else if (!data.user || data.user.identities?.length === 0) {
           // Confirmed duplicate — offer to resend OTP in case account is unconfirmed
           const { error: resendErr } = await supabase.auth.resend({ type: "signup", email });
