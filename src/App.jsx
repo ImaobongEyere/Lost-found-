@@ -1066,23 +1066,23 @@ function AuthModal({ mode, intent, onClose, onAuth, onSwitch }) {
           <>
             <h2 className="mt-1 font-serif text-2xl font-semibold text-slate-800">Enter verification code</h2>
             <p className="mt-1 text-sm text-slate-500">
-              We sent a 6-digit code to <span className="font-semibold text-slate-700">{email}</span>. Enter it below to verify your account.
+              We sent a verification code to <span className="font-semibold text-slate-700">{email}</span>. Enter it below to verify your account.
             </p>
             <div className="mt-5">
               <input
                 type="text"
                 inputMode="numeric"
-                maxLength={6}
+                maxLength={8}
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                 autoFocus
-                placeholder="000000"
+                placeholder="00000000"
                 className="w-full rounded-xl border border-slate-200 py-4 text-center font-mono text-3xl tracking-[0.5em] text-slate-800 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-200"
               />
             </div>
             {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
             <button
-              disabled={otp.length < 6 || loading}
+              disabled={otp.length < 6 || otp.length > 8 || loading}
               onClick={handleVerifyOtp}
               className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-teal-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-300 disabled:cursor-not-allowed disabled:opacity-40"
             >
