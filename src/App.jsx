@@ -1066,19 +1066,25 @@ function AuthModal({ mode, intent, onClose, onAuth, onSwitch }) {
           </>
         ) : (
           <>
-            <h2 className="mt-1 font-serif text-2xl font-semibold text-slate-800">Enter verification code</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              We sent a verification code to <span className="font-semibold text-slate-700">{email}</span>. Enter it below to verify your account.
-            </p>
-            <div className="mt-5">
+            <div className="mt-2 flex flex-col items-center text-center">
+              <CheckCircle2 className="h-10 w-10 text-emerald-500" />
+              <h2 className="mt-3 font-serif text-2xl font-semibold text-slate-800">Check your email</h2>
+              <p className="mt-2 text-sm text-slate-500">
+                We sent a confirmation to <span className="font-semibold text-slate-700">{email}</span>.
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                <strong>Click the link</strong> in the email to verify your account — this page will update automatically.
+              </p>
+              <p className="mt-1 text-xs text-slate-400">If you received a numeric code instead, enter it below.</p>
+            </div>
+            <div className="mt-4">
               <input
                 type="text"
                 inputMode="numeric"
                 maxLength={8}
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                autoFocus
-                placeholder="00000000"
+                placeholder="Enter code (optional)"
                 className="w-full rounded-xl border border-slate-200 py-4 text-center font-mono text-3xl tracking-[0.5em] text-slate-800 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-200"
               />
             </div>
@@ -1088,7 +1094,7 @@ function AuthModal({ mode, intent, onClose, onAuth, onSwitch }) {
               onClick={handleVerifyOtp}
               className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-teal-800 px-5 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-300 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {loading ? "Verifying…" : "Verify & continue"} {!loading && <ArrowRight className="h-4 w-4" />}
+              {loading ? "Verifying…" : "Verify code"} {!loading && <ArrowRight className="h-4 w-4" />}
             </button>
             <div className="mt-4 flex flex-col items-center gap-2">
               <p className="text-center text-xs text-slate-400">
